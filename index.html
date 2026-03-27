@@ -552,24 +552,20 @@ textarea { min-height: 72px; resize: vertical; }
           <optgroup label="── Work Arrangement ──">
             <option value="WFH">🏠 Work From Home (WFH)</option>
           </optgroup>
-          <optgroup label="── Annual &amp; Earned Leave ──">
-            <option value="AL">📅 Annual Leave (AL)</option>
-            <option value="RL">🔄 Replacement / Lieu Leave</option>
-          </optgroup>
-          <optgroup label="── Medical Leave ──">
-            <option value="MC">💊 Medical Certificate (MC)</option>
-            <option value="HL">🏨 Hospitalization Leave</option>
-          </optgroup>
-          <optgroup label="── Special Leave ──">
-            <option value="EL">🚨 Emergency Leave</option>
-            <option value="ML">🤱 Maternity Leave</option>
-            <option value="PL">👶 Paternity Leave</option>
-            <option value="BL">💔 Bereavement Leave</option>
-            <option value="MRL">🏫 Marriage Leave</option>
-          </optgroup>
-          <optgroup label="── Other ──">
-            <option value="UL">💸 Unpaid Leave</option>
-            <option value="OL">📌 Other Leave</option>
+          <optgroup label="── Leave Types ──">
+            <option value="AL">📅 Annual Leave</option>
+            <option value="CF">↩️ Carried Forward</option>
+            <option value="MC">💊 Medical</option>
+            <option value="HL">🏨 Hospitalisation</option>
+            <option value="EL">🚨 Emergency</option>
+            <option value="CC">🕊️ Casual &amp; Compassionate</option>
+            <option value="SE">📚 Study &amp; Examination</option>
+            <option value="PL">👶 Paternity</option>
+            <option value="ML">🤱 Maternity</option>
+            <option value="MRL">🏫 Marriage</option>
+            <option value="RL">🔄 Replacement / Lieu</option>
+            <option value="UL">💸 Unpaid</option>
+            <option value="OL">📌 Other</option>
           </optgroup>
         </select>
       </div>
@@ -738,14 +734,27 @@ let SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzggDHvlFmtwsGa3aQ5qA7
 const PEOPLE = ['Satesh','Rizal','Pearly','Sumathi','Manimaran'];
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 const TYPE_LBL = {
-  WFH:'🏠 WFH', AL:'📅 Annual Leave', MC:'💊 Medical (MC)',
-  HL:'🏨 Hospitalization', EL:'🚨 Emergency', ML:'🤱 Maternity',
-  PL:'👶 Paternity', BL:'💔 Bereavement', MRL:'🏫 Marriage',
-  RL:'🔄 Replacement', UL:'💸 Unpaid', OL:'📌 Other'
+  WFH:'🏠 WFH',
+  AL:'📅 Annual Leave',
+  MC:'💊 Medical',
+  HL:'🏨 Hospitalisation',
+  EL:'🚨 Emergency',
+  CC:'🕊️ Casual & Compassionate',
+  BL:'🕊️ Casual & Compassionate',
+  COC:'🕊️ Casual & Compassionate',
+  SE:'📚 Study & Examination',
+  CF:'↩️ Carried Forward',
+  ML:'🤱 Maternity',
+  PL:'👶 Paternity',
+  MRL:'🏫 Marriage',
+  RL:'🔄 Replacement',
+  UL:'💸 Unpaid',
+  OL:'📌 Other'
 };
 const TYPE_PILL = {
   WFH:'p-pink', AL:'p-purple', MC:'p-blue', HL:'p-red',
-  EL:'p-red', ML:'p-green', PL:'p-green', BL:'p-grey',
+  EL:'p-red', CC:'p-grey', BL:'p-grey', COC:'p-grey',
+  SE:'p-cyan', CF:'p-cyan', ML:'p-green', PL:'p-green',
   MRL:'p-yellow', RL:'p-cyan', UL:'p-grey', OL:'p-grey'
 };
 const TC_CLASS = { WFH:'tc-wfh', AL:'tc-al', MC:'tc-mc', HL:'tc-hl' };
@@ -1021,13 +1030,15 @@ function parseSmart(){
   const typeMap = [
     [['work from home','wfh','working from home','from home'],'WFH'],
     [['annual leave','annual','day off','time off','on leave'],'AL'],
-    [['medical certificate','mc ','mc,','mc.','sick leave','sick','unwell','not feeling well','flu','fever','doctor','clinic'],'MC'],
+    [['medical','mc ','mc,','mc.','sick leave','sick','unwell','not feeling well','flu','fever','doctor','clinic'],'MC'],
     [['hospitaliz','hospital','ward','icu','surgery','operation'],'HL'],
-    [['emergency','urgent family','family emergency'],'EL'],
+    [['casual','compassionate','coc','bereave','funeral','death in family','condolence','passed away','loss of','cc ','cc,'],'CC'],
+    [['study','exam','examination','course'],'SE'],
+    [['emergency','urgent family','family emergency','el ','el,','el.','elm'],'EL'],
     [['maternity'],'ML'],
     [['paternity'],'PL'],
-    [['bereave','funeral','death in family','condolence','passed away'],'BL'],
     [['marriage','wedding','nikah'],'MRL'],
+    [['carried forward','carry forward','cf ','cf,','cf.'],'CF'],
     [['replacement','lieu','off in lieu'],'RL'],
     [['unpaid'],'UL'],
   ];
@@ -1453,52 +1464,187 @@ function handleXL(e){
   if(!file) return;
   const rdr = new FileReader();
   rdr.onload = ev => {
-    const wb = XLSX.read(new Uint8Array(ev.target.result), {type:'array'});
+    const wb = XLSX.read(new Uint8Array(ev.target.result), {type:'array', cellDates:true});
     const ws = wb.Sheets[wb.SheetNames[0]];
-    const rows = XLSX.utils.sheet_to_json(ws, {raw:false, defval:''});
+    // raw:true so dates come as Date objects, defval:'' for empty cells
+    const rows = XLSX.utils.sheet_to_json(ws, {raw:true, defval:''});
     XL_ROWS = rows;
     if(!rows.length){ toast('No data rows found in Excel', 'err'); return; }
+    // Show preview with normalised values
     const headers = Object.keys(rows[0]);
     document.getElementById('xlHead').innerHTML = '<tr>'+headers.map(h=>`<th>${h}</th>`).join('')+'</tr>';
-    document.getElementById('xlBody').innerHTML = rows.slice(0,30).map(r=>'<tr>'+headers.map(h=>`<td>${r[h]||''}</td>`).join('')+'</tr>').join('');
+    document.getElementById('xlBody').innerHTML = rows.slice(0,30).map(r =>
+      '<tr>'+headers.map(h => `<td>${normXLCell(h, r[h])}</td>`).join('')+'</tr>'
+    ).join('');
     document.getElementById('xlPreview').style.display = '';
     toast(`📊 ${rows.length} rows loaded — verify then push`, 'ok');
   };
   rdr.readAsArrayBuffer(file);
 }
 
-async function pushXL(){
-  if(!XL_ROWS.length) return;
-  if(!SCRIPT_URL){ toast('Configure Google Sheet URL in Setup tab first', 'err'); return; }
+// Normalise a single Excel cell for display/preview
+function showBulkSkipSummary(skipped, added, failed){
+  // Remove any existing summary
+  const old = document.getElementById('bulkSummary');
+  if(old) old.remove();
 
-  const norm = XL_ROWS.map(r => {
-    const date = normalizeDate(r.Date||r.date||r.DATE||'');
-    const dateTo = normalizeDate(r.DateTo||r.date_to||r.DATETO||date);
-    return {
-      date, dateTo,
-      name:     r.Name||r.name||r.NAME||'',
-      type:     r.Type||r.type||r.TYPE||r.Leave_Type||r.leave_type||'',
-      duration: r.Duration||r.duration||r.DURATION||'Full Day',
-      reason:   r.Reason||r.reason||r.REASON||'',
-      submittedBy:'Bulk Upload'
-    };
-  }).filter(r=>r.date && r.name);
+  const div = document.createElement('div');
+  div.id = 'bulkSummary';
+  div.style.cssText = 'margin-top:20px;';
 
-  if(!norm.length){ toast('No valid rows after normalization — check column names', 'err'); return; }
+  let html = '';
 
-  try {
-    const r = await fetch(SCRIPT_URL, { method:'POST', body:JSON.stringify(norm) });
-    const j = await r.json();
-    if(j.ok){
-      toast(`✅ ${j.added} rows pushed to Google Sheet!`, 'ok');
-      document.getElementById('xlPreview').style.display = 'none';
-      XL_ROWS = [];
-      setTimeout(loadData, 800);
-    } else toast('Error: ' + j.error, 'err');
-  } catch(e){ toast('❌ Could not reach Google Sheet', 'err'); }
+  if(added > 0){
+    html += `<div style="background:#e4f8ef;border:2px solid #00a651;border-radius:10px;padding:14px 18px;margin-bottom:12px;font-weight:700;color:#007a3d;">
+      ✅ ${added} row${added>1?'s':''} pushed successfully${failed>0?` · ⚠️ ${failed} failed`:''}
+    </div>`;
+  } else if(failed > 0){
+    html += `<div style="background:#ffe5ea;border:2px solid var(--red);border-radius:10px;padding:14px 18px;margin-bottom:12px;font-weight:700;color:#b50021;">
+      ❌ ${failed} row${failed>1?'s':''} failed to push — check your Apps Script deployment
+    </div>`;
+  }
+
+  if(skipped.length){
+    html += `<div style="background:#fff8e1;border:2px solid #f59e0b;border-radius:10px;padding:16px 18px;">
+      <div style="font-weight:900;font-size:14px;color:#92400e;margin-bottom:10px;">
+        ⚠️ ${skipped.length} row${skipped.length>1?'s':''} skipped — duplicate dates
+      </div>
+      <div style="overflow-x:auto;">
+        <table style="width:100%;border-collapse:collapse;font-size:12px;">
+          <thead>
+            <tr style="background:rgba(245,158,11,.15);">
+              <th style="padding:7px 10px;text-align:left;font-weight:900;color:#78350f;">Name</th>
+              <th style="padding:7px 10px;text-align:left;font-weight:900;color:#78350f;">Date</th>
+              <th style="padding:7px 10px;text-align:left;font-weight:900;color:#78350f;">Type</th>
+              <th style="padding:7px 10px;text-align:left;font-weight:900;color:#78350f;">Conflict With</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${skipped.map(s => `<tr style="border-top:1px solid rgba(245,158,11,.2);">
+              <td style="padding:7px 10px;font-weight:700;">${s.row.name}</td>
+              <td style="padding:7px 10px;">${s.row.date}${s.row.dateTo&&s.row.dateTo!==s.row.date?' → '+s.row.dateTo:''}</td>
+              <td style="padding:7px 10px;">${TYPE_LBL[s.row.type]||s.row.type||'—'}</td>
+              <td style="padding:7px 10px;color:#92400e;">${s.conflict}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+      <div style="margin-top:12px;font-size:11px;color:#78350f;font-weight:600;">
+        These rows were <strong>not pushed</strong>. If you want to update them, use the ✏️ edit button in Recent Submissions.
+      </div>
+    </div>`;
+  }
+
+  div.innerHTML = html;
+  const uploadCard = document.querySelector('#page-upload .card');
+  uploadCard.appendChild(div);
+  div.scrollIntoView({ behavior:'smooth', block:'nearest' });
 }
 
-function normalizeDate(s){ return safeDate(s); }
+// Normalise a single Excel cell for display/preview
+function normXLCell(header, v){
+  const h = header.toLowerCase();
+  if((h==='date'||h==='dateto') && v) return xlDate(v);
+  if(h==='duration') return normDuration(v);
+  return v !== null && v !== undefined ? v.toString() : '';
+}
+
+// Convert Excel date value (Date object, serial, or string) to YYYY-MM-DD
+function xlDate(v){
+  if(!v && v !== 0) return '';
+  if(v instanceof Date){
+    const y = v.getFullYear(), m = String(v.getMonth()+1).padStart(2,'0'), d = String(v.getDate()).padStart(2,'0');
+    return `${y}-${m}-${d}`;
+  }
+  return safeDate(v.toString());
+}
+
+// Convert duration: numbers → text, text → keep
+function normDuration(v, type){
+  if(!v && v !== 0) return type==='ELM' ? 'Half Day AM' : 'Full Day';
+  const s = v.toString().trim().toLowerCase();
+  if(s === '0.5' || s === '.5' || s === 'half' || s === '0.5 day') return 'Half Day AM';
+  if(s === '1' || s === 'full' || s === '1 day' || s === 'full day') return 'Full Day';
+  if(s.includes('am')) return 'Half Day AM';
+  if(s.includes('pm')) return 'Half Day PM';
+  if(s.includes('half')) return 'Half Day AM';
+  if(parseFloat(s) >= 1) return 'Full Day';
+  if(parseFloat(s) > 0 && parseFloat(s) < 1) return 'Half Day AM';
+  return v.toString() || (type==='ELM' ? 'Half Day AM' : 'Full Day');
+}
+
+async function pushXL(){
+  if(!XL_ROWS.length) return;
+  if(!SCRIPT_URL){ toast('No Google Sheet URL configured', 'err'); return; }
+
+  const norm = XL_ROWS.map(r => {
+    const date   = xlDate(r.Date  ||r.date  ||r.DATE  ||'');
+    const dateTo = xlDate(r.DateTo||r.dateTo||r.DATETO||r.Date||r.date||'') || date;
+    const rawType = (r.Type||r.type||r.TYPE||r.Leave_Type||r.leave_type||'').toString().trim().toUpperCase();
+    // Normalize legacy codes
+    const typeMap2 = { COC:'CC', BL:'CC', ECL:'CC', ELM:'EL' };
+    const type = typeMap2[rawType] || rawType;
+    const isELM = rawType === 'ELM';
+    const rawDur = r.Duration||r.duration||r.DURATION||'';
+    const dur = isELM ? 'Half Day AM' : normDuration(rawDur, type);
+    return {
+      date, dateTo,
+      name:        (r.Name  ||r.name  ||r.NAME  ||'').toString().trim(),
+      type,
+      duration:    dur,
+      reason:      (r.Reason||r.reason||r.REASON||'').toString().trim(),
+      submittedBy: 'Bulk Upload'
+    };
+  }).filter(r => r.date && r.name);
+
+  if(!norm.length){ toast('No valid rows — check Date and Name columns exist', 'err'); return; }
+
+  toast(`⏳ Checking ${norm.length} rows for duplicates…`, 'ok');
+
+  // ── Duplicate check against existing data ──
+  const skipped = [];
+  const toSend  = [];
+
+  norm.forEach(row => {
+    const dup = ALL_DATA.find(existing => {
+      if((existing.Name||'').trim() !== row.name.trim()) return false;
+      const eFrom = existing.Date   || '';
+      const eTo   = existing.DateTo || eFrom;
+      return row.date <= eTo && row.dateTo >= eFrom;
+    });
+    if(dup){
+      skipped.push({
+        row,
+        conflict: `${dup.Name} already has ${TYPE_LBL[dup.Type]||dup.Type} on ${dup.Date}${dup.DateTo&&dup.DateTo!==dup.Date?' → '+dup.DateTo:''}`
+      });
+    } else {
+      toSend.push(row);
+    }
+  });
+
+  if(!toSend.length && skipped.length){
+    showBulkSkipSummary(skipped, 0, 0);
+    return;
+  }
+
+  toast(`⏳ Pushing ${toSend.length} rows (${skipped.length} skipped)…`, 'ok');
+
+  // Send one by one via GET
+  let added = 0, failed = 0;
+  for(const row of toSend){
+    try {
+      const params = new URLSearchParams({ action:'add', ...row });
+      const res = await fetch(SCRIPT_URL + '?' + params.toString());
+      const j   = await res.json();
+      if(j.ok) added++; else failed++;
+    } catch(e){ failed++; }
+  }
+
+  document.getElementById('xlPreview').style.display = 'none';
+  XL_ROWS = [];
+  showBulkSkipSummary(skipped, added, failed);
+  if(added > 0) setTimeout(loadData, 1000);
+}
 
 // ═══════════════════════════════════════════════
 //  UTILS
