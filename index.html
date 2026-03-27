@@ -233,6 +233,7 @@ textarea { min-height: 72px; resize: vertical; }
 .av-Pearly   { background: linear-gradient(135deg, #f9844a, #f4a261); }
 .av-Sumathi  { background: linear-gradient(135deg, #06d6a0, #118ab2); }
 .av-Manimaran{ background: linear-gradient(135deg, #7209b7, #480ca8); }
+.av-Maran    { background: linear-gradient(135deg, #7209b7, #480ca8); }
 
 /* ─── AI BOX ─────────────────────────────────── */
 .ai-box {
@@ -540,7 +541,7 @@ textarea { min-height: 72px; resize: vertical; }
           <option>Rizal</option>
           <option>Pearly</option>
           <option>Sumathi</option>
-          <option>Manimaran</option>
+          <option>Maran</option>
         </select>
       </div>
 
@@ -731,7 +732,7 @@ textarea { min-height: 72px; resize: vertical; }
 //  CONFIGURATION
 // ═══════════════════════════════════════════════
 let SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzggDHvlFmtwsGa3aQ5qA77kuL5KeRcypSek2jRLJma9exSaJTCol8Kzp6lJN61wkaGvQ/exec';
-const PEOPLE = ['Satesh','Rizal','Pearly','Sumathi','Manimaran'];
+const PEOPLE = ['Satesh','Rizal','Pearly','Sumathi','Maran'];
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 const TYPE_LBL = {
   WFH:'🏠 WFH',
@@ -1091,8 +1092,12 @@ function parseSmart(){
 
   // ── Name ──
   let name = '';
-  PEOPLE.forEach(p => { if(txt.includes(p.toLowerCase())){ name = p; } });
-  // If no name found, assume it's the person themselves — default to first person or leave blank for them to pick
+  PEOPLE.forEach(p => { if(txt.includes(p.toLowerCase())) name = p; });
+  // Alias: full names, staff IDs, manimaran → canonical
+  if(!name){
+    const tried = normName(raw);
+    if(PEOPLE.includes(tried)) name = tried;
+  }
   if(name){ msgs.push('Name: ' + name); document.getElementById('f-name').value = name; }
 
   // ── Type ──
@@ -1708,7 +1713,7 @@ async function pushXL(){
     const dur = isELM ? 'Half Day AM' : normDuration(rawDur, type);
     return {
       date, dateTo,
-      name:        (r.Name  ||r.name  ||r.NAME  ||'').toString().trim(),
+      name:        normName((r.Name  ||r.name  ||r.NAME  ||'').toString().trim()),
       type,
       duration:    dur,
       reason:      (r.Reason||r.reason||r.REASON||'').toString().trim(),
@@ -1830,16 +1835,30 @@ function safeDate(s){
 function normalizeRow(r){
   const rawDate   = r.Date   || r.date   || '';
   const rawDateTo = r.DateTo || r.dateTo || rawDate;
+  const rawName   = (r.Name || r.name || '').trim();
+  const name      = normName(rawName);
   return {
     Timestamp:   r.Timestamp   || r.timestamp   || '',
     Date:        safeDate(rawDate),
     DateTo:      safeDate(rawDateTo),
-    Name:        (r.Name        || r.name        || '').trim(),
+    Name:        name,
     Type:        (r.Type        || r.type        || '').trim(),
     Duration:    (r.Duration    || r.duration    || 'Full Day').trim(),
     Reason:      (r.Reason      || r.reason      || '').trim(),
     SubmittedBy: (r.SubmittedBy || r.submittedBy || '').trim()
   };
+}
+
+// Map any variant of a name to the canonical short name
+function normName(n){
+  if(!n) return '';
+  const u = n.toUpperCase();
+  if(u.includes('PEARLY')   || u.includes('TT4926') || u.includes('FONG SIEW')) return 'Pearly';
+  if(u.includes('SATESH')   || u.includes('TT4807') || u.includes('VASU'))      return 'Satesh';
+  if(u.includes('SUMATHI')  || u.includes('TT5167') || u.includes('MUNIANDY'))  return 'Sumathi';
+  if(u.includes('SYAHRIZAL')|| u.includes('TT3290') || u.includes('RIZAL') || u.includes('SHAFIDZ')) return 'Rizal';
+  if(u.includes('MANIMARAN')|| u.includes('MARAN'))                             return 'Maran';
+  return n;
 }
 
 let toastT;
