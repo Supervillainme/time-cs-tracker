@@ -1,0 +1,1325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TIME CS | Leave & WFH Tracker</title>
+<link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:opsz,wght@6..12,300;6..12,400;6..12,600;6..12,700;6..12,800;6..12,900&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root {
+  --pink: #F454CE;
+  --pink-d: #d63eb5;
+  --pink-l: #fdf0fa;
+  --pink-m: #fce5f8;
+  --purple: #6015B7;
+  --purple-d: #4a0f8f;
+  --purple-l: #f0e9ff;
+  --cyan: #7DEDFF;
+  --cyan-d: #00c8e0;
+  --black: #0a0a0a;
+  --dark: #1c1c1c;
+  --mid: #444;
+  --muted: #888;
+  --border: #e5e5e5;
+  --light: #f8f8fb;
+  --white: #fff;
+  --green: #00a651;
+  --red: #e4002b;
+  --radius: 12px;
+  --shadow: 0 4px 24px rgba(96,21,183,0.09);
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: 'Nunito Sans', sans-serif;
+  background: var(--light);
+  color: var(--dark);
+  min-height: 100vh;
+  font-size: 14px;
+}
+a { color: var(--pink); }
+
+/* ─── HEADER ─────────────────────────────────── */
+.hdr {
+  background: var(--black);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 32px;
+  border-bottom: 3px solid var(--pink);
+  position: sticky;
+  top: 0;
+  z-index: 200;
+}
+.hdr-left { display: flex; align-items: center; gap: 16px; }
+.hdr-logo { height: 34px; filter: brightness(0) invert(1); }
+.hdr-divider { width: 1px; height: 28px; background: rgba(255,255,255,.15); }
+.hdr-title { color: rgba(255,255,255,.65); font-size: 13px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.hdr-badge {
+  background: var(--pink);
+  color: white;
+  font-size: 10px;
+  font-weight: 900;
+  padding: 3px 10px;
+  border-radius: 20px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.hdr-date { color: rgba(255,255,255,.4); font-size: 12px; font-weight: 600; }
+
+/* ─── TABS ───────────────────────────────────── */
+.tabs {
+  background: white;
+  display: flex;
+  padding: 0 28px;
+  border-bottom: 2px solid var(--border);
+  box-shadow: 0 2px 10px rgba(0,0,0,.05);
+  overflow-x: auto;
+}
+.tab {
+  padding: 16px 22px;
+  font-weight: 800;
+  font-size: 13px;
+  cursor: pointer;
+  border-bottom: 3px solid transparent;
+  margin-bottom: -2px;
+  color: var(--muted);
+  transition: all .2s;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  user-select: none;
+}
+.tab:hover { color: var(--pink); }
+.tab.on { color: var(--pink); border-bottom-color: var(--pink); }
+
+/* ─── LAYOUT ─────────────────────────────────── */
+.page { display: none; }
+.page.on { display: block; animation: fadeUp .22s ease; }
+.wrap { max-width: 1100px; margin: 0 auto; padding: 28px 24px; }
+@keyframes slideDown {
+  from { opacity:0; transform:translateY(-12px); }
+  to   { opacity:1; transform:translateY(0); }
+}
+.form-reveal { animation: slideDown .3s cubic-bezier(.34,1.2,.64,1); }
+
+/* ─── CARDS ──────────────────────────────────── */
+.card {
+  background: white;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 26px;
+  margin-bottom: 22px;
+}
+.card-h {
+  font-size: 16px;
+  font-weight: 900;
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.card-h::before {
+  content: '';
+  width: 4px;
+  height: 18px;
+  background: var(--pink);
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+/* ─── FORMS ──────────────────────────────────── */
+.fg { display: flex; flex-direction: column; gap: 6px; }
+.fg label { font-size: 11px; font-weight: 900; color: var(--mid); text-transform: uppercase; letter-spacing: .08em; }
+.fg label span { color: var(--pink); }
+select, input[type="text"], input[type="date"], textarea {
+  border: 2px solid var(--border);
+  border-radius: 8px;
+  padding: 9px 13px;
+  font-size: 14px;
+  font-family: inherit;
+  color: var(--dark);
+  background: white;
+  transition: border-color .2s, box-shadow .2s;
+  width: 100%;
+}
+select:focus, input:focus, textarea:focus {
+  outline: none;
+  border-color: var(--pink);
+  box-shadow: 0 0 0 3px rgba(244,84,206,.13);
+}
+textarea { min-height: 72px; resize: vertical; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+.grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 18px; }
+.span2 { grid-column: 1 / -1; }
+
+/* ─── CHIPS ──────────────────────────────────── */
+.chips { display: flex; gap: 8px; flex-wrap: wrap; }
+.chip {
+  padding: 7px 16px;
+  border-radius: 8px;
+  border: 2px solid var(--border);
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: all .2s;
+  background: white;
+  color: var(--mid);
+  user-select: none;
+}
+.chip:hover { border-color: var(--pink); color: var(--pink); }
+.chip.on { background: var(--pink); border-color: var(--pink); color: white; }
+
+/* ─── BUTTONS ────────────────────────────────── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 10px 22px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+  border: none;
+  transition: all .2s;
+  letter-spacing: .02em;
+  font-family: inherit;
+}
+.btn-p { background: var(--pink); color: white; }
+.btn-p:hover { background: var(--pink-d); transform: translateY(-1px); box-shadow: 0 6px 18px rgba(244,84,206,.35); }
+.btn-s { background: var(--purple); color: white; }
+.btn-s:hover { background: var(--purple-d); }
+.btn-g { background: white; color: var(--mid); border: 2px solid var(--border); }
+.btn-g:hover { border-color: var(--pink); color: var(--pink); }
+.btn-sm { padding: 7px 14px; font-size: 12px; }
+.btn-danger { background: var(--red); color: white; }
+
+/* ─── PILLS ──────────────────────────────────── */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 800;
+}
+.p-pink   { background: var(--pink-m); color: var(--pink-d); }
+.p-purple { background: var(--purple-l); color: var(--purple); }
+.p-blue   { background: #dff5ff; color: #006fa6; }
+.p-green  { background: #e4f8ef; color: #007a3d; }
+.p-red    { background: #ffe5ea; color: #b50021; }
+.p-yellow { background: #fff5d6; color: #7a5500; }
+.p-grey   { background: #f0f0f0; color: #555; }
+.p-cyan   { background: #e0fdff; color: #007a8c; }
+
+/* ─── AVATARS ────────────────────────────────── */
+.av {
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 900;
+  color: white;
+  flex-shrink: 0;
+}
+.av-36 { width:36px; height:36px; font-size:14px; }
+.av-28 { width:28px; height:28px; font-size:11px; }
+.av-22 { width:22px; height:22px; font-size:9px; }
+.av-48 { width:48px; height:48px; font-size:18px; }
+.av-Satesh   { background: linear-gradient(135deg, var(--pink), var(--purple)); }
+.av-Rizal    { background: linear-gradient(135deg, #00b4d8, #023e8a); }
+.av-Pearly   { background: linear-gradient(135deg, #f9844a, #f4a261); }
+.av-Sumathi  { background: linear-gradient(135deg, #06d6a0, #118ab2); }
+.av-Manimaran{ background: linear-gradient(135deg, #7209b7, #480ca8); }
+
+/* ─── AI BOX ─────────────────────────────────── */
+.ai-box {
+  background: linear-gradient(135deg, #0d0d18 0%, #1a053a 100%);
+  border-radius: var(--radius);
+  padding: 22px 24px;
+  border: 1px solid rgba(244,84,206,.3);
+  margin-bottom: 22px;
+}
+.ai-hdr { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+.ai-title { color: white; font-size: 15px; font-weight: 900; }
+.ai-badge {
+  background: var(--pink);
+  color: white;
+  font-size: 9px;
+  font-weight: 900;
+  padding: 2px 8px;
+  border-radius: 20px;
+  letter-spacing: .1em;
+}
+.ai-box textarea {
+  background: rgba(255,255,255,.07);
+  border: 1.5px solid rgba(244,84,206,.35);
+  color: white;
+  border-radius: 8px;
+}
+.ai-box textarea::placeholder { color: rgba(255,255,255,.3); }
+.ai-box textarea:focus { border-color: var(--pink); box-shadow: 0 0 0 3px rgba(244,84,206,.18); }
+.ai-footer { display: flex; align-items: center; justify-content: space-between; margin-top: 10px; flex-wrap: wrap; gap: 8px; }
+.ai-hint { color: rgba(125,237,255,.75); font-size: 11px; font-weight: 600; }
+
+/* ─── PARSE RESULT ───────────────────────────── */
+.parse-ok {
+  background: linear-gradient(135deg, var(--purple-l), var(--pink-l));
+  border-left: 3px solid var(--purple);
+  border-radius: 8px;
+  padding: 12px 16px;
+  font-size: 13px;
+  color: var(--purple);
+  font-weight: 700;
+  margin-bottom: 18px;
+  display: none;
+}
+
+/* ─── STAT BOXES ─────────────────────────────── */
+.stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 22px; }
+.stat-box {
+  background: white;
+  border-radius: 10px;
+  padding: 18px 20px;
+  box-shadow: var(--shadow);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.stat-icon { font-size: 26px; }
+.stat-num { font-size: 30px; font-weight: 900; color: var(--dark); line-height: 1; }
+.stat-lbl { font-size: 10px; font-weight: 800; color: var(--muted); text-transform: uppercase; letter-spacing: .07em; }
+
+/* ─── TODAY GRID ─────────────────────────────── */
+.today-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px,1fr)); gap: 14px; }
+.today-card {
+  border-radius: 10px;
+  padding: 14px;
+  border: 2px solid;
+}
+.tc-wfh  { border-color: var(--pink); background: var(--pink-l); }
+.tc-al   { border-color: var(--purple); background: var(--purple-l); }
+.tc-mc   { border-color: #00b4d8; background: #dff5ff; }
+.tc-hl   { border-color: var(--red); background: #ffe5ea; }
+.tc-off  { border-color: var(--border); background: #fafafa; }
+
+/* ─── UPCOMING ───────────────────────────────── */
+.upc-item { display: flex; align-items: center; gap: 14px; padding: 11px 0; border-bottom: 1px solid var(--border); }
+.upc-date { min-width: 48px; text-align: center; }
+.upc-day { font-size: 22px; font-weight: 900; line-height: 1; color: var(--dark); }
+.upc-mon { font-size: 10px; font-weight: 800; color: var(--muted); text-transform: uppercase; }
+
+/* ─── MONTHLY BARS ───────────────────────────── */
+.bar-chart { display: flex; align-items: flex-end; gap: 6px; height: 90px; }
+.bar-col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.bar-val { font-size: 10px; font-weight: 800; color: var(--pink); min-height: 14px; }
+.bar-body { width: 100%; border-radius: 4px 4px 0 0; min-height: 4px; transition: background .2s; }
+.bar-body.cur { background: var(--pink); }
+.bar-body:not(.cur) { background: var(--pink-m); }
+.bar-body:hover { background: var(--pink); }
+.bar-lbl { font-size: 10px; color: var(--muted); font-weight: 700; }
+
+/* ─── PERSON SUMMARY ─────────────────────────── */
+.person-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px,1fr)); gap: 12px; margin-top: 16px; }
+.person-card {
+  background: var(--light);
+  border-radius: 10px;
+  padding: 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.badge-circle {
+  background: var(--pink);
+  color: white;
+  border-radius: 50%;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 900;
+  border: 2px solid white;
+  box-shadow: 0 2px 8px rgba(244,84,206,.3);
+}
+.person-av-wrap { position: relative; }
+
+/* ─── TABLE ──────────────────────────────────── */
+.data-tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
+.data-tbl th {
+  background: var(--light);
+  font-weight: 900;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: .07em;
+  color: var(--muted);
+  padding: 9px 13px;
+  text-align: left;
+}
+.data-tbl td { padding: 10px 13px; border-bottom: 1px solid var(--border); }
+.data-tbl tr:hover td { background: var(--pink-l); }
+
+/* ─── UPLOAD ZONE ────────────────────────────── */
+.upload-zone {
+  border: 2px dashed var(--border);
+  border-radius: var(--radius);
+  padding: 48px;
+  text-align: center;
+  cursor: pointer;
+  transition: all .2s;
+}
+.upload-zone:hover, .upload-zone.drag { border-color: var(--pink); background: var(--pink-l); }
+.upload-icon { font-size: 48px; margin-bottom: 12px; }
+
+/* ─── SETUP CODE ─────────────────────────────── */
+.code-box {
+  background: #0e0e1a;
+  border-radius: 8px;
+  padding: 20px;
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
+  color: var(--cyan);
+  overflow-x: auto;
+  line-height: 1.9;
+  white-space: pre;
+}
+.kw { color: var(--pink); }
+.st { color: #98e07e; }
+.cm { color: rgba(255,255,255,.3); }
+
+/* ─── FILTER BAR ─────────────────────────────── */
+.filter-bar { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 20px; }
+.fsel {
+  padding: 7px 13px;
+  border: 2px solid var(--border);
+  border-radius: 8px;
+  font-size: 13px;
+  font-family: inherit;
+  font-weight: 700;
+  color: var(--dark);
+  background: white;
+  cursor: pointer;
+}
+.fsel:focus { outline: none; border-color: var(--pink); }
+
+/* ─── INFO BOX ───────────────────────────────── */
+.info-box {
+  background: linear-gradient(135deg, var(--purple-l), var(--pink-l));
+  border-radius: 8px;
+  padding: 13px 17px;
+  font-size: 13px;
+  color: var(--purple);
+  border-left: 3px solid var(--purple);
+  margin-bottom: 18px;
+  font-weight: 600;
+  line-height: 1.6;
+}
+.info-box code {
+  background: rgba(96,21,183,.1);
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+/* ─── TOAST ──────────────────────────────────── */
+.toast {
+  position: fixed;
+  bottom: 28px;
+  right: 28px;
+  background: var(--dark);
+  color: white;
+  padding: 13px 22px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 700;
+  box-shadow: 0 8px 32px rgba(0,0,0,.3);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  transform: translateY(80px);
+  opacity: 0;
+  transition: all .28s cubic-bezier(.34,1.56,.64,1);
+  max-width: 340px;
+}
+.toast.show { transform: translateY(0); opacity: 1; }
+.toast.ok  { border-left: 4px solid var(--green); }
+.toast.err { border-left: 4px solid var(--red); }
+
+/* ─── SECTION LABEL ──────────────────────────── */
+.slabel {
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: .1em;
+  color: var(--pink);
+  margin-bottom: 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.slabel::after { content:''; flex:1; height:1px; background: var(--pink-m); }
+
+/* ─── RESPONSIVE ─────────────────────────────── */
+@media(max-width:768px) {
+  .wrap { padding: 16px; }
+  .grid2, .grid3 { grid-template-columns: 1fr; }
+  .stats-row { grid-template-columns: 1fr 1fr; }
+  .hdr { padding: 12px 16px; }
+  .tabs { padding: 0 8px; }
+  .tab { padding: 14px 14px; font-size: 12px; }
+  .span2 { grid-column: auto; }
+}
+@media(max-width:500px) {
+  .stats-row { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<!-- ══════════ HEADER ══════════ -->
+<header class="hdr">
+  <div class="hdr-left">
+    <img src="https://i.imgur.com/rvtkiXm.png" class="hdr-logo" alt="TIME">
+    <div class="hdr-divider"></div>
+    <span class="hdr-title">CS Leave &amp; WFH Tracker</span>
+  </div>
+  <div style="display:flex;align-items:center;gap:14px;">
+    <span class="hdr-date" id="hdrDate"></span>
+    <span class="hdr-badge">Internal</span>
+  </div>
+</header>
+
+<!-- ══════════ TABS ══════════ -->
+<nav class="tabs">
+  <div class="tab on"  id="tab-submit"    onclick="go('submit')">📋 Submit Leave/WFH</div>
+  <div class="tab"     id="tab-dash"      onclick="go('dash')">📊 Dashboard</div>
+  <div class="tab"     id="tab-upload"    onclick="go('upload')">⬆️ Bulk Upload</div>
+</nav>
+
+<!-- ══════════════════════════════════════════════
+     PAGE: SUBMIT
+══════════════════════════════════════════════════ -->
+<div id="page-submit" class="page on">
+<div class="wrap">
+
+  <!-- AI Quick Entry -->
+  <div class="ai-box">
+    <div class="ai-hdr">
+      <span class="ai-title">✨ Smart Entry</span>
+      <span class="ai-badge">AI POWERED</span>
+    </div>
+    <div style="color:rgba(255,255,255,.45);font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px;">Type it naturally — we'll fill the form for you</div>
+    <textarea id="smartTxt" placeholder='Examples:
+• "I'm on annual leave tomorrow — going to Langkawi"
+• "Rizal MC half day afternoon this Thursday, not feeling well"
+• "WFH next Monday to Wednesday, kids school holiday"
+• "Pearly hospitalization leave 15 March to 17 March, surgery recovery"'></textarea>
+    <div class="ai-footer">
+      <span class="ai-hint">🤖 Understands names · dates · leave types · durations · date ranges · reasons</span>
+      <button class="btn btn-p btn-sm" onclick="parseSmart()">⚡ Parse &amp; Fill Form</button>
+    </div>
+  </div>
+
+  <div class="card" id="formCard" style="display:none;">
+    <div class="card-h">Confirm &amp; Submit</div>
+
+    <div id="parseOk" class="parse-ok"></div>
+
+    <div class="grid2" style="margin-bottom:18px;">
+
+      <!-- Name -->
+      <div class="fg">
+        <label>Staff Name <span>*</span></label>
+        <select id="f-name">
+          <option value="">— Select Staff —</option>
+          <option>Satesh</option>
+          <option>Rizal</option>
+          <option>Pearly</option>
+          <option>Sumathi</option>
+          <option>Manimaran</option>
+        </select>
+      </div>
+
+      <!-- Type -->
+      <div class="fg">
+        <label>Leave / WFH Type <span>*</span></label>
+        <select id="f-type">
+          <option value="">— Select Type —</option>
+          <optgroup label="── Work Arrangement ──">
+            <option value="WFH">🏠 Work From Home (WFH)</option>
+          </optgroup>
+          <optgroup label="── Annual &amp; Earned Leave ──">
+            <option value="AL">📅 Annual Leave (AL)</option>
+            <option value="RL">🔄 Replacement / Lieu Leave</option>
+          </optgroup>
+          <optgroup label="── Medical Leave ──">
+            <option value="MC">💊 Medical Certificate (MC)</option>
+            <option value="HL">🏨 Hospitalization Leave</option>
+          </optgroup>
+          <optgroup label="── Special Leave ──">
+            <option value="EL">🚨 Emergency Leave</option>
+            <option value="ML">🤱 Maternity Leave</option>
+            <option value="PL">👶 Paternity Leave</option>
+            <option value="BL">💔 Bereavement Leave</option>
+            <option value="MRL">🏫 Marriage Leave</option>
+          </optgroup>
+          <optgroup label="── Other ──">
+            <option value="UL">💸 Unpaid Leave</option>
+            <option value="OL">📌 Other Leave</option>
+          </optgroup>
+        </select>
+      </div>
+
+      <!-- Duration -->
+      <div class="fg">
+        <label>Duration <span>*</span></label>
+        <div class="chips" id="durChips">
+          <div class="chip on" onclick="pickDur(this,'Full Day')">🌕 Full Day</div>
+          <div class="chip" onclick="pickDur(this,'Half Day AM')">🌅 Half Day AM</div>
+          <div class="chip" onclick="pickDur(this,'Half Day PM')">🌇 Half Day PM</div>
+        </div>
+        <input type="hidden" id="f-dur" value="Full Day">
+      </div>
+
+      <!-- Date Mode -->
+      <div class="fg">
+        <label>Date Mode</label>
+        <div class="chips">
+          <div class="chip on" onclick="pickMode(this,'single')">📅 Single Date</div>
+          <div class="chip" onclick="pickMode(this,'range')">📆 Date Range</div>
+        </div>
+        <input type="hidden" id="f-mode" value="single">
+      </div>
+
+      <!-- Date (single) -->
+      <div class="fg" id="grp-single">
+        <label>Date <span>*</span></label>
+        <input type="date" id="f-date">
+      </div>
+
+      <!-- Date range -->
+      <div class="fg" id="grp-from" style="display:none;">
+        <label>From <span>*</span></label>
+        <input type="date" id="f-from">
+      </div>
+      <div class="fg" id="grp-to" style="display:none;">
+        <label>To <span>*</span></label>
+        <input type="date" id="f-to">
+      </div>
+
+      <!-- Reason -->
+      <div class="fg span2">
+        <label>Reason / Notes</label>
+        <textarea id="f-reason" placeholder="Optional — any additional context for your manager"></textarea>
+      </div>
+
+    </div>
+
+    <div style="display:flex;gap:10px;justify-content:flex-end;">
+      <button class="btn btn-g" onclick="resetForm()">↺ Clear &amp; Start Over</button>
+      <button class="btn btn-p" onclick="submitLeave()">✓ Submit Entry</button>
+    </div>
+  </div>
+
+  <!-- Recent -->
+  <div class="card">
+    <div class="card-h">Recent Submissions</div>
+    <div id="recentList"><div style="text-align:center;padding:24px;color:var(--muted);">Loading…</div></div>
+  </div>
+
+</div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     PAGE: DASHBOARD
+══════════════════════════════════════════════════ -->
+<div id="page-dash" class="page">
+<div class="wrap">
+
+  <!-- Stats -->
+  <div class="stats-row">
+    <div class="stat-box">
+      <div class="stat-icon">🏠</div>
+      <div><div class="stat-num" id="s-wfh">—</div><div class="stat-lbl">WFH Today</div></div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-icon">🌴</div>
+      <div><div class="stat-num" id="s-leave">—</div><div class="stat-lbl">On Leave Today</div></div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-icon">📆</div>
+      <div><div class="stat-num" id="s-upc">—</div><div class="stat-lbl">Upcoming (7d)</div></div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-icon">📊</div>
+      <div><div class="stat-num" id="s-month">—</div><div class="stat-lbl">This Month Total</div></div>
+    </div>
+  </div>
+
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+    <div style="font-size:13px;font-weight:700;color:var(--muted);">Showing: <strong style="color:var(--dark)" id="curYearLbl"></strong></div>
+    <button class="btn btn-g btn-sm" onclick="loadData()">🔄 Refresh</button>
+  </div>
+
+  <div class="grid2">
+    <!-- Today -->
+    <div class="card">
+      <div class="card-h">Today — <span id="todayLbl" style="font-weight:600;font-size:14px;"></span></div>
+      <div id="todayGrid" class="today-grid"></div>
+    </div>
+
+    <!-- Upcoming -->
+    <div class="card">
+      <div class="card-h">Upcoming — Next 7 Days</div>
+      <div id="upcomingList"></div>
+    </div>
+  </div>
+
+  <!-- Monthly trend -->
+  <div class="card">
+    <div class="card-h">Monthly Trend</div>
+    <div id="barChart" class="bar-chart" style="margin-bottom:4px;"></div>
+    <div id="personGrid" class="person-grid"></div>
+  </div>
+
+
+</div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     PAGE: UPLOAD
+══════════════════════════════════════════════════ -->
+<div id="page-upload" class="page">
+<div class="wrap">
+  <div class="card">
+    <div class="card-h">📤 Bulk Upload from Excel</div>
+    <div class="info-box">
+      Upload an <strong>.xlsx</strong> file to back-fill historical leave records. Expected columns (case-insensitive):<br>
+      <code>Date</code> · <code>DateTo</code> · <code>Name</code> · <code>Type</code> · <code>Duration</code> · <code>Reason</code><br>
+      A preview will show before anything is pushed. Date format: <code>YYYY-MM-DD</code> or <code>DD/MM/YYYY</code>.
+    </div>
+
+    <div class="upload-zone" id="uploadZone" onclick="document.getElementById('xlFile').click()">
+      <div class="upload-icon">📁</div>
+      <div style="font-size:16px;font-weight:800;margin-bottom:6px;">Drop .xlsx file here or click to browse</div>
+      <div style="color:var(--muted);font-size:13px;">Supports .xlsx and .xls</div>
+      <input type="file" id="xlFile" accept=".xlsx,.xls" style="display:none" onchange="handleXL(event)">
+    </div>
+
+    <div id="xlPreview" style="display:none;margin-top:24px;">
+      <div class="slabel">Preview</div>
+      <div style="overflow-x:auto;margin-bottom:16px;">
+        <table class="data-tbl">
+          <thead id="xlHead"></thead>
+          <tbody id="xlBody"></tbody>
+        </table>
+      </div>
+      <div style="display:flex;gap:10px;justify-content:flex-end;">
+        <button class="btn btn-g" onclick="document.getElementById('xlPreview').style.display='none'">✕ Cancel</button>
+        <button class="btn btn-p" onclick="pushXL()">⬆ Push to Google Sheet</button>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ═══════════════════════════════════════════════
+//  CONFIGURATION
+// ═══════════════════════════════════════════════
+let SCRIPT_URL = localStorage.getItem('TIME_WFH_URL') || '';
+const PEOPLE = ['Satesh','Rizal','Pearly','Sumathi','Manimaran'];
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const TYPE_LBL = {
+  WFH:'🏠 WFH', AL:'📅 Annual Leave', MC:'💊 Medical (MC)',
+  HL:'🏨 Hospitalization', EL:'🚨 Emergency', ML:'🤱 Maternity',
+  PL:'👶 Paternity', BL:'💔 Bereavement', MRL:'🏫 Marriage',
+  RL:'🔄 Replacement', UL:'💸 Unpaid', OL:'📌 Other'
+};
+const TYPE_PILL = {
+  WFH:'p-pink', AL:'p-purple', MC:'p-blue', HL:'p-red',
+  EL:'p-red', ML:'p-green', PL:'p-green', BL:'p-grey',
+  MRL:'p-yellow', RL:'p-cyan', UL:'p-grey', OL:'p-grey'
+};
+const TC_CLASS = { WFH:'tc-wfh', AL:'tc-al', MC:'tc-mc', HL:'tc-hl' };
+
+let ALL_DATA = [];
+let XL_ROWS  = [];
+
+// ═══════════════════════════════════════════════
+//  INIT
+// ═══════════════════════════════════════════════
+window.onload = () => {
+  // Header date
+  document.getElementById('hdrDate').textContent =
+    new Date().toLocaleDateString('en-MY',{weekday:'short',day:'numeric',month:'short',year:'numeric'});
+
+  // Today label
+  document.getElementById('todayLbl').textContent =
+    new Date().toLocaleDateString('en-MY',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+
+  // Set default dates
+  const t = fmt(new Date());
+  ['f-date','f-from','f-to'].forEach(id => { const el = document.getElementById(id); if(el) el.value = t; });
+
+  // Set curYearLbl
+  const yr = new Date().getFullYear();
+  const lbl = document.getElementById('curYearLbl');
+  if(lbl) lbl.textContent = yr + ' · All Staff · All Types';
+
+  // Drag-drop upload
+  const uz = document.getElementById('uploadZone');
+  uz.addEventListener('dragover', e => { e.preventDefault(); uz.classList.add('drag'); });
+  uz.addEventListener('dragleave', () => uz.classList.remove('drag'));
+  uz.addEventListener('drop', e => {
+    e.preventDefault(); uz.classList.remove('drag');
+    const f = e.dataTransfer.files[0];
+    if(f) { document.getElementById('xlFile').files = e.dataTransfer.files; handleXL({target:{files:[f]}}); }
+  });
+
+  loadData();
+};
+
+// ═══════════════════════════════════════════════
+//  DATA
+// ═══════════════════════════════════════════════
+async function loadData() {
+  if(!SCRIPT_URL){ ALL_DATA = demo(); renderRecent(); renderDash(); return; }
+  try {
+    const r = await fetch(SCRIPT_URL + '?t=' + Date.now());
+    const j = await r.json();
+    if(j.ok){ ALL_DATA = j.data || []; }
+    else { toast('Sheet error: ' + j.error, 'err'); ALL_DATA = demo(); }
+  } catch(e) {
+    ALL_DATA = demo();
+    if(SCRIPT_URL) toast('Could not reach Google Sheet — showing demo data', 'err');
+  }
+  renderRecent();
+  renderDash();
+}
+
+function demo(){
+  const t = fmt(new Date()), t1 = fmt(add(new Date(),1)), t2 = fmt(add(new Date(),2)), t3 = fmt(add(new Date(),5));
+  return [
+    { Timestamp: new Date().toISOString(), Date:t,  DateTo:t,  Name:'Rizal',     Type:'WFH', Duration:'Full Day',    Reason:'Focus work' },
+    { Timestamp: new Date().toISOString(), Date:t,  DateTo:t,  Name:'Pearly',    Type:'AL',  Duration:'Full Day',    Reason:'Family trip' },
+    { Timestamp: new Date().toISOString(), Date:t1, DateTo:t1, Name:'Sumathi',   Type:'WFH', Duration:'Half Day AM', Reason:'School drop' },
+    { Timestamp: new Date().toISOString(), Date:t1, DateTo:t2, Name:'Manimaran', Type:'MC',  Duration:'Full Day',    Reason:'Fever' },
+    { Timestamp: new Date().toISOString(), Date:t3, DateTo:t3, Name:'Satesh',    Type:'WFH', Duration:'Full Day',    Reason:'Deep work day' },
+  ];
+}
+
+// ═══════════════════════════════════════════════
+//  SUBMIT
+// ═══════════════════════════════════════════════
+async function submitLeave(){
+  const name = val('f-name'), type = val('f-type'), dur = val('f-dur');
+  const mode = val('f-mode');
+  const date = mode==='single' ? val('f-date') : val('f-from');
+  const dateTo = mode==='range' ? val('f-to') : date;
+  const reason = val('f-reason');
+
+  if(!name)  { toast('Select a staff name', 'err'); return; }
+  if(!type)  { toast('Select leave / WFH type', 'err'); return; }
+  if(!date)  { toast('Pick a date', 'err'); return; }
+  if(mode==='range' && dateTo < date) { toast('End date must be after start date', 'err'); return; }
+
+  const payload = { date, dateTo, name, type, duration:dur, reason, submittedBy:name };
+
+  if(!SCRIPT_URL){
+    ALL_DATA.push({ Timestamp:new Date().toISOString(), Date:date, DateTo:dateTo, Name:name, Type:type, Duration:dur, Reason:reason });
+    toast('✅ Submitted (demo mode — set up Google Sheet for real storage)', 'ok');
+    renderRecent(); renderDash(); resetForm(); return;
+  }
+
+  try {
+    const r = await fetch(SCRIPT_URL, { method:'POST', body:JSON.stringify(payload) });
+    const j = await r.json();
+    if(j.ok){ toast('✅ Submitted successfully!', 'ok'); resetForm(); setTimeout(loadData,800); }
+    else toast('❌ ' + j.error, 'err');
+  } catch(e) { toast('❌ Could not reach Google Sheet', 'err'); }
+}
+
+function resetForm(){
+  ['f-name','f-type','f-reason'].forEach(id => document.getElementById(id).value = '');
+  const t = fmt(new Date());
+  ['f-date','f-from','f-to'].forEach(id => document.getElementById(id).value = t);
+  document.getElementById('smartTxt').value = '';
+  document.getElementById('parseOk').style.display = 'none';
+  const fc = document.getElementById('formCard');
+  fc.style.display = 'none';
+  fc.classList.remove('form-reveal');
+  pickDur(document.querySelector('#durChips .chip'), 'Full Day');
+  pickMode(document.querySelector('.chips:nth-of-type(2) .chip'), 'single');
+}
+
+// ═══════════════════════════════════════════════
+//  SMART TEXT PARSER
+// ═══════════════════════════════════════════════
+function parseSmart(){
+  const raw = document.getElementById('smartTxt').value.trim();
+  if(!raw){ toast('Type something first', 'err'); return; }
+  const txt = raw.toLowerCase();
+  const msgs = [];
+
+  // ── Name ──
+  let name = '';
+  PEOPLE.forEach(p => { if(txt.includes(p.toLowerCase())){ name = p; } });
+  // If no name found, assume it's the person themselves — default to first person or leave blank for them to pick
+  if(name){ msgs.push('Name: ' + name); document.getElementById('f-name').value = name; }
+
+  // ── Type ──
+  const typeMap = [
+    [['work from home','wfh','working from home','from home'],'WFH'],
+    [['annual leave','annual','day off','time off','on leave'],'AL'],
+    [['medical certificate','mc ','mc,','mc.','sick leave','sick','unwell','not feeling well','flu','fever','doctor','clinic'],'MC'],
+    [['hospitaliz','hospital','ward','icu','surgery','operation'],'HL'],
+    [['emergency','urgent family','family emergency'],'EL'],
+    [['maternity'],'ML'],
+    [['paternity'],'PL'],
+    [['bereave','funeral','death in family','condolence','passed away'],'BL'],
+    [['marriage','wedding','nikah'],'MRL'],
+    [['replacement','lieu','off in lieu'],'RL'],
+    [['unpaid'],'UL'],
+  ];
+  let type = '';
+  for(const [keys, val] of typeMap){
+    if(keys.some(k => txt.includes(k))){ type = val; break; }
+  }
+  if(!type && txt.includes('leave')) type = 'AL';
+  if(type){ msgs.push('Type: ' + (TYPE_LBL[type]||type)); document.getElementById('f-type').value = type; }
+
+  // ── Duration ──
+  let dur = 'Full Day';
+  if(txt.includes('half day') || txt.includes('half-day')){
+    if(txt.includes('morning') || txt.includes(' am') || txt.match(/\bam\b/)){
+      dur = 'Half Day AM';
+    } else if(txt.includes('afternoon') || txt.includes('evening') || txt.match(/\bpm\b/)){
+      dur = 'Half Day PM';
+    } else {
+      dur = 'Half Day AM';
+    }
+    msgs.push('Duration: ' + dur);
+  } else if(txt.includes('full day') || txt.includes('whole day')){
+    msgs.push('Duration: Full Day');
+  }
+  document.querySelectorAll('#durChips .chip').forEach(c => {
+    const match = c.textContent.toLowerCase().includes(dur.toLowerCase().split(' ').pop()) ||
+                  (dur==='Full Day' && c.textContent.includes('Full'));
+    c.classList.toggle('on', match);
+  });
+  document.getElementById('f-dur').value = dur;
+
+  // ── Dates ──
+  const today = new Date(); today.setHours(0,0,0,0);
+  let dateFrom = null, dateTo = null;
+  const dayNames = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday'];
+  const months12 = {jan:1,feb:2,mar:3,apr:4,may:5,jun:6,jul:7,aug:8,sep:9,oct:10,nov:11,dec:12,
+    january:1,february:2,march:3,april:4,june:6,july:7,august:8,september:9,october:10,november:11,december:12};
+  const mmKeys = Object.keys(months12).join('|');
+
+  const dateRangeRe = new RegExp(`(\\d{1,2})\\s+(${mmKeys})\\s+to\\s+(\\d{1,2})\\s+(${mmKeys})`, 'i');
+  const dateRangeM  = txt.match(dateRangeRe);
+  if(dateRangeM){
+    const y = today.getFullYear();
+    const m1 = months12[dateRangeM[2].toLowerCase()]-1, d1 = parseInt(dateRangeM[1]);
+    const m2 = months12[dateRangeM[4].toLowerCase()]-1, d2 = parseInt(dateRangeM[3]);
+    dateFrom = new Date(y,m1,d1);
+    dateTo   = new Date(y,m2,d2);
+  } else {
+    const singleDateRe = new RegExp(`(\\d{1,2})\\s+(${mmKeys})`, 'i');
+    const sdm = txt.match(singleDateRe);
+    if(sdm){
+      const y = today.getFullYear();
+      const m = months12[sdm[2].toLowerCase()]-1, d = parseInt(sdm[1]);
+      dateFrom = new Date(y,m,d);
+    }
+  }
+
+  if(!dateFrom){
+    if(txt.includes('today')){ dateFrom = new Date(today); }
+    else if(txt.includes('day after tomorrow')){ dateFrom = add(today,2); }
+    else if(txt.includes('tomorrow')){ dateFrom = add(today,1); }
+    else {
+      const dowRangeRe = new RegExp(`(${dayNames.join('|')})\\s+to\\s+(${dayNames.join('|')})`,'i');
+      const drm = txt.match(dowRangeRe);
+      if(drm){
+        const d1 = dayNames.indexOf(drm[1].toLowerCase());
+        const d2 = dayNames.indexOf(drm[2].toLowerCase());
+        if(d1>=0&&d2>=0){
+          const curr = today.getDay();
+          let diff1 = d1-curr; if(diff1<=0) diff1+=7;
+          let diff2 = d2-curr; if(diff2<diff1) diff2+=7;
+          dateFrom = add(today,diff1);
+          dateTo   = add(today,diff2);
+        }
+      } else {
+        dayNames.forEach((d,i) => {
+          if(txt.includes(d)){
+            const curr = today.getDay();
+            let diff = i-curr; if(diff<=0) diff+=7;
+            dateFrom = add(today,diff);
+          }
+        });
+      }
+    }
+  }
+
+  if(dateFrom && dateTo && fmt(dateFrom)!==fmt(dateTo)){
+    pickMode(document.querySelectorAll('.chips')[1].querySelectorAll('.chip')[1],'range');
+    document.getElementById('f-from').value = fmt(dateFrom);
+    document.getElementById('f-to').value   = fmt(dateTo||dateFrom);
+    msgs.push('Dates: ' + fmt(dateFrom) + ' → ' + fmt(dateTo));
+  } else if(dateFrom){
+    pickMode(document.querySelectorAll('.chips')[1].querySelectorAll('.chip')[0],'single');
+    document.getElementById('f-date').value = fmt(dateFrom);
+    msgs.push('Date: ' + fmt(dateFrom));
+  }
+
+  // ── Reason / Notes ──
+  // Strip out the recognised structured parts, keep the remainder as the reason
+  let reasonRaw = raw;
+  // Remove names
+  PEOPLE.forEach(p => { reasonRaw = reasonRaw.replace(new RegExp(p,'gi'), '').trim(); });
+  // Remove leave type keywords
+  const stripWords = [
+    'work from home','working from home','wfh','annual leave','medical certificate','sick leave',
+    'hospitalization leave','hospitalization','emergency leave','maternity leave','paternity leave',
+    'bereavement leave','marriage leave','replacement leave','unpaid leave','half day am','half day pm',
+    'half day','full day','whole day','tomorrow','today','next','this','on leave','mc','al',
+    'from home'
+  ];
+  stripWords.forEach(w => { reasonRaw = reasonRaw.replace(new RegExp('\\b'+w+'\\b','gi'),''); });
+  // Remove day/month/date references
+  const allDays = ['monday','tuesday','wednesday','thursday','friday','saturday','sunday'];
+  const allMonths = Object.keys(months12);
+  [...allDays,...allMonths].forEach(w => { reasonRaw = reasonRaw.replace(new RegExp('\\b'+w+'\\b','gi'),''); });
+  reasonRaw = reasonRaw.replace(/\b\d{1,2}\b/g,'').replace(/[,.\-–—]+/g,' ').replace(/\s{2,}/g,' ').trim();
+
+  // Also look for explicit reason markers like "—", ",", "due to", "because", "reason:"
+  const markerRe = /(?:--|[,\-]\s*|due to|because|reason:|–|—)\s*(.+)/i;
+  const markerM  = raw.match(markerRe);
+  const parsedReason = markerM ? markerM[1].trim() : reasonRaw;
+
+  if(parsedReason && parsedReason.length > 2){
+    document.getElementById('f-reason').value = parsedReason;
+    msgs.push('Reason: "' + parsedReason + '"');
+  }
+
+  if(msgs.length){
+    const el = document.getElementById('parseOk');
+    el.style.display = '';
+    el.innerHTML = '✅ <strong>Parsed:</strong> ' + msgs.join(' &nbsp;·&nbsp; ') +
+      '<div style="font-size:11px;margin-top:6px;color:var(--purple);">Review the details below and click Submit — or adjust anything that\'s off.</div>';
+    // Reveal the form
+    const fc = document.getElementById('formCard');
+    fc.style.display = '';
+    fc.classList.add('form-reveal');
+    fc.scrollIntoView({ behavior:'smooth', block:'nearest' });
+    toast('Form filled — review and submit! 👇', 'ok');
+  } else {
+    toast('Could not parse — try including your name, leave type and date', 'err');
+  }
+}
+
+// ═══════════════════════════════════════════════
+//  UI HELPERS
+// ═══════════════════════════════════════════════
+function pickDur(el, v){
+  document.querySelectorAll('#durChips .chip').forEach(c => c.classList.remove('on'));
+  el.classList.add('on');
+  document.getElementById('f-dur').value = v;
+}
+function pickMode(el, v){
+  el.closest('.chips').querySelectorAll('.chip').forEach(c => c.classList.remove('on'));
+  el.classList.add('on');
+  document.getElementById('f-mode').value = v;
+  document.getElementById('grp-single').style.display = v==='single' ? '' : 'none';
+  document.getElementById('grp-from').style.display   = v==='range'  ? '' : 'none';
+  document.getElementById('grp-to').style.display     = v==='range'  ? '' : 'none';
+}
+
+function go(id){
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('on'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('on'));
+  document.getElementById('page-'+id).classList.add('on');
+  document.getElementById('tab-'+id).classList.add('on');
+  if(id==='dash') renderDash();
+}
+
+// ═══════════════════════════════════════════════
+//  RENDER RECENT
+// ═══════════════════════════════════════════════
+function renderRecent(){
+  const sorted = [...ALL_DATA].sort((a,b)=>(b.Timestamp||'').localeCompare(a.Timestamp||''));
+  let h = '';
+  sorted.slice(0,6).forEach(r => {
+    const n=r.Name||'', t=r.Type||'', d=r.Date||'', dur=r.Duration||'Full Day';
+    h += `<div class="upc-item">
+      <div class="av av-28 av-${n}">${n.charAt(0)}</div>
+      <div style="flex:1"><div style="font-weight:800">${n}</div>
+        <div style="font-size:11px;color:var(--muted)">${d} &nbsp;·&nbsp; ${dur}</div></div>
+      <span class="pill ${TYPE_PILL[t]||'p-grey'}">${TYPE_LBL[t]||t}</span>
+    </div>`;
+  });
+  document.getElementById('recentList').innerHTML = h || '<div style="text-align:center;padding:20px;color:var(--muted)">No submissions yet. Be the first! 👆</div>';
+}
+
+// ═══════════════════════════════════════════════
+//  DASHBOARD
+// ═══════════════════════════════════════════════
+function renderDash(){
+  const year   = new Date().getFullYear();
+  const filt = ALL_DATA.filter(r => (r.Date||'').startsWith(year+''));
+  renderStats(filt);
+  renderToday(filt);
+  renderUpcoming(filt);
+  renderBars(filt, year);
+}
+
+function renderStats(d){
+  const today = fmt(new Date());
+  const tm = today.slice(0,7);
+  const inToday = r => inRange(today, r.Date||'', r.DateTo||r.Date||'');
+  document.getElementById('s-wfh').textContent   = d.filter(r=>inToday(r)&&(r.Type||'')==='WFH').length;
+  document.getElementById('s-leave').textContent = d.filter(r=>inToday(r)&&(r.Type||'')!=='WFH').length;
+  document.getElementById('s-upc').textContent   = d.filter(r=>{const dt=r.Date||''; return dt>today&&dt<=fmt(add(new Date(),7));}).length;
+  document.getElementById('s-month').textContent = d.filter(r=>(r.Date||'').startsWith(tm)).length;
+}
+
+function renderToday(data){
+  const today = fmt(new Date());
+  const hits  = data.filter(r => inRange(today, r.Date||'', r.DateTo||r.Date||''));
+  const officeP = PEOPLE.filter(p => !hits.find(r=>(r.Name||r.name)===p));
+  let h = '';
+  hits.forEach(r => {
+    const n=r.Name||'', t=r.Type||'', dur=r.Duration||'Full Day';
+    const cls = TC_CLASS[t]||'tc-off';
+    h += `<div class="today-card ${cls}">
+      <div style="display:flex;align-items:center;gap:9px;margin-bottom:9px">
+        <div class="av av-36 av-${n}">${n.charAt(0)}</div>
+        <strong>${n}</strong>
+      </div>
+      <span class="pill ${TYPE_PILL[t]||'p-grey'}">${TYPE_LBL[t]||t}</span>
+      <div style="font-size:11px;color:var(--muted);margin-top:6px">${dur}</div>
+    </div>`;
+  });
+  officeP.forEach(n => {
+    h += `<div class="today-card tc-off">
+      <div style="display:flex;align-items:center;gap:9px;margin-bottom:9px">
+        <div class="av av-36 av-${n}">${n.charAt(0)}</div>
+        <strong>${n}</strong>
+      </div>
+      <span class="pill p-green">🏢 In Office</span>
+    </div>`;
+  });
+  document.getElementById('todayGrid').innerHTML = h || '<div style="color:var(--muted);font-size:13px">No entries today</div>';
+}
+
+function renderUpcoming(data){
+  const today = fmt(new Date()), end7 = fmt(add(new Date(),7));
+  const future = data
+    .filter(r => { const d=r.Date||''; return d>today && d<=end7; })
+    .sort((a,b)=>(a.Date||'').localeCompare(b.Date||''));
+
+  const grouped = {};
+  future.forEach(r => {
+    const d = r.Date||''; if(!grouped[d]) grouped[d]=[];
+    grouped[d].push(r);
+  });
+
+  let h = '';
+  Object.entries(grouped).forEach(([d,rows]) => {
+    const do2 = new Date(d+'T00:00:00');
+    h += `<div class="upc-item">
+      <div class="upc-date">
+        <div class="upc-day">${do2.getDate()}</div>
+        <div class="upc-mon">${MONTHS[do2.getMonth()]}<br>${do2.toLocaleString('en-MY',{weekday:'short'})}</div>
+      </div>
+      <div style="flex:1">`;
+    rows.forEach(r => {
+      const n=r.Name||'', t=r.Type||'';
+      h += `<div style="display:flex;align-items:center;gap:7px;margin-bottom:4px">
+        <div class="av av-22 av-${n}">${n.charAt(0)}</div>
+        <span style="font-size:13px;font-weight:800">${n}</span>
+        <span class="pill ${TYPE_PILL[t]||'p-grey'}" style="font-size:10px">${TYPE_LBL[t]||t}</span>
+      </div>`;
+    });
+    h += '</div></div>';
+  });
+
+  document.getElementById('upcomingList').innerHTML = h ||
+    '<div style="color:var(--muted);padding:16px 0;font-size:13px">All clear for the next 7 days 🎉</div>';
+}
+
+function renderBars(data, year){
+  const counts = Array(12).fill(0);
+  const pCounts = {};
+  PEOPLE.forEach(p => pCounts[p] = Array(12).fill(0));
+  const wfhCounts = {};
+  PEOPLE.forEach(p => wfhCounts[p] = 0);
+
+  data.forEach(r => {
+    const d=r.Date||'', n=r.Name||'', t=r.Type||'';
+    if(d.startsWith(year+'')){
+      const m = parseInt(d.split('-')[1])-1;
+      if(m>=0&&m<12){ counts[m]++; if(pCounts[n]) pCounts[n][m]++; }
+    }
+    if(t==='WFH' && wfhCounts.hasOwnProperty(n)) wfhCounts[n]++;
+  });
+
+  const totalPerPerson = {};
+  PEOPLE.forEach(p => totalPerPerson[p] = data.filter(r=>(r.Name||r.name)===p).length);
+
+  const maxC = Math.max(...counts, 1);
+  const cm = new Date().getMonth();
+  let bh = '';
+  counts.forEach((c,i) => {
+    const h = Math.max(4, Math.round((c/maxC)*70));
+    bh += `<div class="bar-col">
+      <div class="bar-val">${c||''}</div>
+      <div class="bar-body ${i===cm?'cur':''}" style="height:${h}px" title="${MONTHS[i]}: ${c}"></div>
+      <div class="bar-lbl">${MONTHS[i]}</div>
+    </div>`;
+  });
+  document.getElementById('barChart').innerHTML = bh;
+
+  // Person summary with circular WFH badge
+  let ph = '';
+  PEOPLE.forEach(p => {
+    const total = totalPerPerson[p];
+    const wfh   = wfhCounts[p];
+    ph += `<div class="person-card">
+      <div class="person-av-wrap">
+        <div class="av av-48 av-${p}">${p.charAt(0)}</div>
+        <div class="badge-circle" style="position:absolute;top:-4px;right:-4px;">${total}</div>
+      </div>
+      <div>
+        <div style="font-weight:900;font-size:14px">${p}</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px">🏠 ${wfh} WFH days</div>
+        <div style="font-size:11px;color:var(--muted)">📋 ${total} total entries</div>
+      </div>
+    </div>`;
+  });
+  document.getElementById('personGrid').innerHTML = ph;
+}
+
+function renderTable(data){
+  const sorted = [...data].sort((a,b)=>(b.Date||'').localeCompare(a.Date||''));
+  let h = '';
+  sorted.slice(0,150).forEach(r => {
+    const d=r.Date||'', dTo=r.DateTo||d, n=r.Name||'', t=r.Type||'';
+    const dlbl = d===dTo ? d : d+' → '+dTo;
+    const ts = r.Timestamp ? new Date(r.Timestamp).toLocaleDateString('en-MY') : '';
+    h += `<tr>
+      <td>${dlbl}</td>
+      <td><div style="display:flex;align-items:center;gap:7px">
+        <div class="av av-22 av-${n}">${n.charAt(0)}</div>${n}</div></td>
+      <td><span class="pill ${TYPE_PILL[t]||'p-grey'}" style="font-size:11px">${TYPE_LBL[t]||t}</span></td>
+      <td>${r.Duration||r.duration||''}</td>
+      <td>${r.Reason||r.reason||'—'}</td>
+      <td style="font-size:11px;color:var(--muted)">${ts}</td>
+    </tr>`;
+  });
+  document.getElementById('recTable').innerHTML = h ||
+    '<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--muted)">No records found for these filters</td></tr>';
+}
+
+// ═══════════════════════════════════════════════
+//  EXCEL UPLOAD
+// ═══════════════════════════════════════════════
+function handleXL(e){
+  const file = e.target.files[0];
+  if(!file) return;
+  const rdr = new FileReader();
+  rdr.onload = ev => {
+    const wb = XLSX.read(new Uint8Array(ev.target.result), {type:'array'});
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(ws, {raw:false, defval:''});
+    XL_ROWS = rows;
+    if(!rows.length){ toast('No data rows found in Excel', 'err'); return; }
+    const headers = Object.keys(rows[0]);
+    document.getElementById('xlHead').innerHTML = '<tr>'+headers.map(h=>`<th>${h}</th>`).join('')+'</tr>';
+    document.getElementById('xlBody').innerHTML = rows.slice(0,30).map(r=>'<tr>'+headers.map(h=>`<td>${r[h]||''}</td>`).join('')+'</tr>').join('');
+    document.getElementById('xlPreview').style.display = '';
+    toast(`📊 ${rows.length} rows loaded — verify then push`, 'ok');
+  };
+  rdr.readAsArrayBuffer(file);
+}
+
+async function pushXL(){
+  if(!XL_ROWS.length) return;
+  if(!SCRIPT_URL){ toast('Configure Google Sheet URL in Setup tab first', 'err'); return; }
+
+  const norm = XL_ROWS.map(r => {
+    const date = normalizeDate(r.Date||r.date||r.DATE||'');
+    const dateTo = normalizeDate(r.DateTo||r.date_to||r.DATETO||date);
+    return {
+      date, dateTo,
+      name:     r.Name||r.name||r.NAME||'',
+      type:     r.Type||r.type||r.TYPE||r.Leave_Type||r.leave_type||'',
+      duration: r.Duration||r.duration||r.DURATION||'Full Day',
+      reason:   r.Reason||r.reason||r.REASON||'',
+      submittedBy:'Bulk Upload'
+    };
+  }).filter(r=>r.date && r.name);
+
+  if(!norm.length){ toast('No valid rows after normalization — check column names', 'err'); return; }
+
+  try {
+    const r = await fetch(SCRIPT_URL, { method:'POST', body:JSON.stringify(norm) });
+    const j = await r.json();
+    if(j.ok){
+      toast(`✅ ${j.added} rows pushed to Google Sheet!`, 'ok');
+      document.getElementById('xlPreview').style.display = 'none';
+      XL_ROWS = [];
+      setTimeout(loadData, 800);
+    } else toast('Error: ' + j.error, 'err');
+  } catch(e){ toast('❌ Could not reach Google Sheet', 'err'); }
+}
+
+function normalizeDate(s){
+  if(!s) return '';
+  s = s.toString().trim();
+  // Already YYYY-MM-DD
+  if(/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  // DD/MM/YYYY
+  const m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+  if(m) return `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
+  // Excel serial
+  if(/^\d+$/.test(s)){
+    const d = new Date((parseInt(s)-25569)*86400*1000);
+    return fmt(d);
+  }
+  // Try parsing
+  const d = new Date(s);
+  if(!isNaN(d)) return fmt(d);
+  return s;
+}
+
+// ═══════════════════════════════════════════════
+//  UTILS
+// ═══════════════════════════════════════════════
+function fmt(d){ return d.toISOString().split('T')[0]; }
+function add(d, n){ const r=new Date(d); r.setDate(r.getDate()+n); return r; }
+function val(id){ return document.getElementById(id).value; }
+function inRange(check, from, to){ return check>=(from||check)&&check<=(to||from||check); }
+
+let toastT;
+function toast(msg, type='ok'){
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'toast show ' + type;
+  clearTimeout(toastT);
+  toastT = setTimeout(()=>el.classList.remove('show'), 3600);
+}
+</script>
+</body>
+</html>
