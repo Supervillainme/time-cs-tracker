@@ -920,7 +920,9 @@ function resetForm(){
 function parseSmart(){
   const raw = document.getElementById('smartTxt').value.trim();
   if(!raw){ toast('Type something first', 'err'); return; }
-  const txt = raw.toLowerCase();
+  // Strip ordinal suffixes: 1st 2nd 3rd 4th ... 31st
+  const cleaned = raw.replace(/(\d+)(st|nd|rd|th)\b/gi, '$1');
+  const txt = cleaned.toLowerCase();
   const msgs = [];
 
   // ── Name ──
@@ -1040,7 +1042,7 @@ function parseSmart(){
 
   // ── Reason / Notes ──
   // Strip out the recognised structured parts, keep the remainder as the reason
-  let reasonRaw = raw;
+  let reasonRaw = cleaned;
   // Remove names
   PEOPLE.forEach(p => { reasonRaw = reasonRaw.replace(new RegExp(p,'gi'), '').trim(); });
   // Remove leave type keywords
