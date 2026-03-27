@@ -890,10 +890,12 @@ function resetForm(){
   // Reset duration chip safely
   const firstDur = document.querySelector('#durChips .chip');
   if(firstDur) pickDur(firstDur, 'Full Day');
-  // Reset mode chip safely — find the single-date chip by its text content
-  document.querySelectorAll('.chips .chip').forEach(c => {
-    if(c.textContent.includes('Single Date')) pickMode(c, 'single');
+  // Reset mode chip safely — find by text content
+  let singleChip = null;
+  document.querySelectorAll('.chip').forEach(c => {
+    if(c.textContent.includes('Single Date')) singleChip = c;
   });
+  if(singleChip) pickMode(singleChip, 'single');
 }
 
 // ═══════════════════════════════════════════════
@@ -932,24 +934,25 @@ function parseSmart(){
   if(!type && txt.includes('leave')) type = 'AL';
   if(type){ msgs.push('Type: ' + (TYPE_LBL[type]||type)); document.getElementById('f-type').value = type; }
 
-  // ── Duration ──
+  // ── Duration ── default Full Day always, override only if half day stated
   let dur = 'Full Day';
-  if(txt.includes('half day') || txt.includes('half-day')){
-    if(txt.includes('morning') || txt.includes(' am') || txt.match(/\bam\b/)){
+  if(txt.includes('half day') || txt.includes('half-day') || txt.includes('halfday')){
+    if(txt.includes('morning') || txt.match(/\bam\b/)){
       dur = 'Half Day AM';
     } else if(txt.includes('afternoon') || txt.includes('evening') || txt.match(/\bpm\b/)){
       dur = 'Half Day PM';
     } else {
-      dur = 'Half Day AM';
+      dur = 'Half Day AM'; // default half day to AM if not specified
     }
-    msgs.push('Duration: ' + dur);
-  } else if(txt.includes('full day') || txt.includes('whole day')){
-    msgs.push('Duration: Full Day');
   }
+  msgs.push('Duration: ' + dur);
   document.querySelectorAll('#durChips .chip').forEach(c => {
-    const match = c.textContent.toLowerCase().includes(dur.toLowerCase().split(' ').pop()) ||
-                  (dur==='Full Day' && c.textContent.includes('Full'));
-    c.classList.toggle('on', match);
+    const label = c.textContent.trim();
+    c.classList.toggle('on',
+      (dur==='Full Day'    && label.includes('Full')) ||
+      (dur==='Half Day AM' && label.includes('AM'))   ||
+      (dur==='Half Day PM' && label.includes('PM'))
+    );
   });
   document.getElementById('f-dur').value = dur;
 
@@ -1074,12 +1077,17 @@ function pickDur(el, v){
   document.getElementById('f-dur').value = v;
 }
 function pickMode(el, v){
-  el.closest('.chips').querySelectorAll('.chip').forEach(c => c.classList.remove('on'));
+  if(!el) return;
+  const chipsEl = el.closest('.chips');
+  if(chipsEl) chipsEl.querySelectorAll('.chip').forEach(c => c.classList.remove('on'));
   el.classList.add('on');
   document.getElementById('f-mode').value = v;
-  document.getElementById('grp-single').style.display = v==='single' ? '' : 'none';
-  document.getElementById('grp-from').style.display   = v==='range'  ? '' : 'none';
-  document.getElementById('grp-to').style.display     = v==='range'  ? '' : 'none';
+  const gs = document.getElementById('grp-single');
+  const gf = document.getElementById('grp-from');
+  const gt = document.getElementById('grp-to');
+  if(gs) gs.style.display = v==='single' ? '' : 'none';
+  if(gf) gf.style.display = v==='range'  ? '' : 'none';
+  if(gt) gt.style.display = v==='range'  ? '' : 'none';
 }
 
 function go(id){
