@@ -520,7 +520,7 @@ textarea { min-height: 72px; resize: vertical; }
 • "Pearly hospitalization leave 15 March to 17 March, surgery recovery"'></textarea>
     <div class="ai-footer">
       <span class="ai-hint">🤖 Understands names · dates · leave types · durations · date ranges · reasons</span>
-      <button class="btn btn-p btn-sm" onclick="parseSmart()">⚡ Parse &amp; Fill Form</button>
+      <button class="btn btn-p btn-sm" onclick="parseSmart()">⚡ Submit</button>
     </div>
   </div>
 
@@ -759,6 +759,65 @@ const TYPE_PILL = {
 };
 const TC_CLASS = { WFH:'tc-wfh', AL:'tc-al', MC:'tc-mc', HL:'tc-hl' };
 
+// ── Malaysian & Selangor Public Holidays 2026 ──
+const PUBLIC_HOLIDAYS = {
+  '2026-01-01': 'New Year\'s Day',
+  '2026-01-26': 'Thaipusam',
+  '2026-01-29': 'Chinese New Year',
+  '2026-01-30': 'Chinese New Year (2nd Day)',
+  '2026-03-05': 'Nuzul Al-Quran',
+  '2026-03-20': 'Hari Raya Aidilfitri',
+  '2026-03-21': 'Hari Raya Aidilfitri (2nd Day)',
+  '2026-05-01': 'Labour Day',
+  '2026-05-23': 'Wesak Day',
+  '2026-05-27': 'Hari Raya Aidiladha',
+  '2026-05-28': 'Hari Raya Aidiladha (2nd Day)',
+  '2026-06-01': 'Yang di-Pertuan Agong\'s Birthday',
+  '2026-06-26': 'Awal Muharram',
+  '2026-08-31': 'National Day (Merdeka)',
+  '2026-09-04': 'Maulidur Rasul',
+  '2026-09-16': 'Malaysia Day',
+  '2026-10-20': 'Deepavali',
+  '2026-12-11': 'Sultan of Selangor\'s Birthday',
+  '2026-12-25': 'Christmas Day',
+};
+
+// ── Recurring WFH schedules (0=Sun,1=Mon...6=Sat) ──
+// These show on dashboard unless trumped by an actual submission
+const RECURRING_WFH = {
+  'Sumathi':   3, // Wednesday
+  'Pearly':    5, // Friday
+  'Rizal':     4, // Thursday
+};
+
+// Check if a date string is a weekend
+function isWeekend(d){
+  if(!d) return false;
+  const parts = d.split('-');
+  const dt = new Date(parseInt(parts[0]), parseInt(parts[1])-1, parseInt(parts[2]));
+  return dt.getDay()===0 || dt.getDay()===6;
+}
+
+// Check if a date is a public holiday — returns name or null
+function isPublicHoliday(d){ return PUBLIC_HOLIDAYS[d] || null; }
+
+// Get effective status for a person on a date (actual entry or recurring WFH)
+function getEffectiveStatus(name, dateStr, data){
+  // Actual entry always wins
+  const actual = data.find(r => inRange(dateStr, r.Date||'', r.DateTo||r.Date||'') && (r.Name||'')===name);
+  if(actual) return actual;
+  // Recurring WFH — only on weekdays, non-holidays
+  const dow = RECURRING_WFH[name];
+  if(dow !== undefined && !isWeekend(dateStr) && !isPublicHoliday(dateStr)){
+    const parts = dateStr.split('-');
+    const dt = new Date(parseInt(parts[0]), parseInt(parts[1])-1, parseInt(parts[2]));
+    if(dt.getDay() === dow){
+      return { Name:name, Type:'WFH', Duration:'Full Day', Date:dateStr, DateTo:dateStr, _recurring:true };
+    }
+  }
+  return null;
+}
+
 let ALL_DATA = [];
 let XL_ROWS  = [];
 let EDIT_TS  = null; // tracks which row is being edited (by Timestamp)
@@ -846,6 +905,16 @@ async function submitLeave(){
   if(!type)  { toast('Select leave / WFH type', 'err'); return; }
   if(!date)  { toast('Pick a date', 'err'); return; }
   if(mode==='range' && dateTo < date) { toast('End date must be after start date', 'err'); return; }
+
+  // ── Weekend check ──
+  if(isWeekend(date)){
+    toast('❌ ' + date + ' is a weekend — no need to submit!', 'err'); return;
+  }
+  // ── Public holiday check ──
+  const ph = isPublicHoliday(date);
+  if(ph){
+    toast('❌ ' + date + ' is a public holiday (' + ph + ')', 'err'); return;
+  }
 
   // ── Duplicate check (skip if we're already editing or force-submitting) ──
   if(!EDIT_TS && !window._forceSubmit){
@@ -1134,7 +1203,14 @@ function parseSmart(){
   } else if(dateFrom){
     pickMode(document.querySelectorAll('.chips')[1].querySelectorAll('.chip')[0],'single');
     document.getElementById('f-date').value = fmt(dateFrom);
-    msgs.push('Date: ' + fmt(dateFrom));
+    const ds = fmt(dateFrom);
+    if(isWeekend(ds)){
+      msgs.push('⚠️ ' + ds + ' is a weekend');
+    } else {
+      const ph = isPublicHoliday(ds);
+      if(ph) msgs.push('⚠️ ' + ds + ' is a public holiday (' + ph + ')');
+      else   msgs.push('Date: ' + ds);
+    }
   }
 
   // ── Reason / Notes ──
@@ -1310,56 +1386,88 @@ function renderDash(){
 function renderStats(d){
   const today = fmt(new Date());
   const tm = today.slice(0,7);
-  const inToday = r => inRange(today, r.Date||'', r.DateTo||r.Date||'');
-  document.getElementById('s-wfh').textContent   = d.filter(r=>inToday(r)&&(r.Type||'')==='WFH').length;
-  document.getElementById('s-leave').textContent = d.filter(r=>inToday(r)&&(r.Type||'')!=='WFH').length;
+  // Count all effective statuses for today (including recurring)
+  const todayStatuses = PEOPLE.map(n => getEffectiveStatus(n, today, d)).filter(Boolean);
+  document.getElementById('s-wfh').textContent   = todayStatuses.filter(r=>(r.Type||'')==='WFH').length;
+  document.getElementById('s-leave').textContent = todayStatuses.filter(r=>(r.Type||'')!=='WFH').length;
   document.getElementById('s-upc').textContent   = d.filter(r=>{const dt=r.Date||''; return dt>today&&dt<=fmt(add(new Date(),7));}).length;
   document.getElementById('s-month').textContent = d.filter(r=>(r.Date||'').startsWith(tm)).length;
 }
 
 function renderToday(data){
   const today = fmt(new Date());
-  const hits  = data.filter(r => inRange(today, r.Date||'', r.DateTo||r.Date||''));
-  const officeP = PEOPLE.filter(p => !hits.find(r=>(r.Name||r.name)===p));
+
+  // Check if today is weekend or holiday
+  if(isWeekend(today)){
+    const parts = today.split('-');
+    const dt = new Date(parseInt(parts[0]),parseInt(parts[1])-1,parseInt(parts[2]));
+    document.getElementById('todayGrid').innerHTML =
+      `<div style="color:var(--muted);font-size:13px;padding:12px 0;">🏖️ It's ${dt.toLocaleString('en-MY',{weekday:'long'})} — everyone's off!</div>`;
+    return;
+  }
+  const ph = isPublicHoliday(today);
+  if(ph){
+    document.getElementById('todayGrid').innerHTML =
+      `<div style="color:var(--muted);font-size:13px;padding:12px 0;">🎉 Public holiday today — ${ph}</div>`;
+    return;
+  }
+
   let h = '';
-  hits.forEach(r => {
-    const n=r.Name||'', t=r.Type||'', dur=r.Duration||'Full Day';
-    const cls = TC_CLASS[t]||'tc-off';
-    h += `<div class="today-card ${cls}">
-      <div style="display:flex;align-items:center;gap:9px;margin-bottom:9px">
-        <div class="av av-36 av-${n}">${n.charAt(0)}</div>
-        <strong>${n}</strong>
-      </div>
-      <span class="pill ${TYPE_PILL[t]||'p-grey'}">${TYPE_LBL[t]||t}</span>
-      <div style="font-size:11px;color:var(--muted);margin-top:6px">${dur}</div>
-    </div>`;
+  PEOPLE.forEach(n => {
+    const status = getEffectiveStatus(n, today, data);
+    if(status){
+      const t = status.Type||'', dur = status.Duration||'Full Day';
+      const cls = TC_CLASS[t]||'tc-off';
+      const recurBadge = status._recurring
+        ? `<div style="font-size:10px;color:var(--muted);margin-top:4px;font-style:italic;">🔁 Recurring</div>`
+        : '';
+      h += `<div class="today-card ${cls}">
+        <div style="display:flex;align-items:center;gap:9px;margin-bottom:9px">
+          <div class="av av-36 av-${n}">${n.charAt(0)}</div>
+          <strong>${n}</strong>
+        </div>
+        <span class="pill ${TYPE_PILL[t]||'p-grey'}">${TYPE_LBL[t]||t}</span>
+        <div style="font-size:11px;color:var(--muted);margin-top:6px">${dur}</div>
+        ${recurBadge}
+      </div>`;
+    } else {
+      h += `<div class="today-card tc-off">
+        <div style="display:flex;align-items:center;gap:9px;margin-bottom:9px">
+          <div class="av av-36 av-${n}">${n.charAt(0)}</div>
+          <strong>${n}</strong>
+        </div>
+        <span class="pill p-green">🏢 In Office</span>
+      </div>`;
+    }
   });
-  officeP.forEach(n => {
-    h += `<div class="today-card tc-off">
-      <div style="display:flex;align-items:center;gap:9px;margin-bottom:9px">
-        <div class="av av-36 av-${n}">${n.charAt(0)}</div>
-        <strong>${n}</strong>
-      </div>
-      <span class="pill p-green">🏢 In Office</span>
-    </div>`;
-  });
-  document.getElementById('todayGrid').innerHTML = h || '<div style="color:var(--muted);font-size:13px">No entries today</div>';
+  document.getElementById('todayGrid').innerHTML = h;
 }
 
 function renderUpcoming(data){
   const today = fmt(new Date()), end7 = fmt(add(new Date(),7));
-  const future = data
-    .filter(r => { const d=r.Date||''; return d>today && d<=end7; })
-    .sort((a,b)=>(a.Date||'').localeCompare(b.Date||''));
 
+  // Build a grouped map of the next 7 days
   const grouped = {};
-  future.forEach(r => {
-    const d = r.Date||''; if(!grouped[d]) grouped[d]=[];
-    grouped[d].push(r);
-  });
+  for(let i=1; i<=7; i++){
+    const d = fmt(add(new Date(), i));
+    if(isWeekend(d)) continue;
+    const ph = isPublicHoliday(d);
+    if(ph){
+      grouped[d] = [{ _holiday: true, _label: ph }];
+      continue;
+    }
+    // Collect all people's effective status for this day
+    PEOPLE.forEach(n => {
+      const status = getEffectiveStatus(n, d, data);
+      if(status){
+        if(!grouped[d]) grouped[d] = [];
+        grouped[d].push(status);
+      }
+    });
+  }
 
   let h = '';
-  Object.entries(grouped).forEach(([d,rows]) => {
+  Object.entries(grouped).sort(([a],[b])=>a.localeCompare(b)).forEach(([d, rows]) => {
     const parts = d.split('-');
     const do2 = new Date(parseInt(parts[0]), parseInt(parts[1])-1, parseInt(parts[2]));
     h += `<div class="upc-item">
@@ -1368,14 +1476,25 @@ function renderUpcoming(data){
         <div class="upc-mon">${MONTHS[do2.getMonth()]}<br>${do2.toLocaleString('en-MY',{weekday:'short'})}</div>
       </div>
       <div style="flex:1">`;
-    rows.forEach(r => {
-      const n=r.Name||'', t=r.Type||'';
-      h += `<div style="display:flex;align-items:center;gap:7px;margin-bottom:4px">
-        <div class="av av-22 av-${n}">${n.charAt(0)}</div>
-        <span style="font-size:13px;font-weight:800">${n}</span>
-        <span class="pill ${TYPE_PILL[t]||'p-grey'}" style="font-size:10px">${TYPE_LBL[t]||t}</span>
+
+    if(rows[0]?._holiday){
+      h += `<div style="display:flex;align-items:center;gap:7px">
+        <span class="pill p-yellow" style="font-size:10px">🎉 ${rows[0]._label}</span>
       </div>`;
-    });
+    } else {
+      rows.forEach(r => {
+        const n=r.Name||'', t=r.Type||'';
+        const recurTag = r._recurring
+          ? `<span style="font-size:9px;color:var(--muted);font-style:italic;margin-left:2px">🔁</span>`
+          : '';
+        h += `<div style="display:flex;align-items:center;gap:7px;margin-bottom:4px">
+          <div class="av av-22 av-${n}">${n.charAt(0)}</div>
+          <span style="font-size:13px;font-weight:800">${n}</span>
+          <span class="pill ${TYPE_PILL[t]||'p-grey'}" style="font-size:10px">${TYPE_LBL[t]||t}</span>
+          ${recurTag}
+        </div>`;
+      });
+    }
     h += '</div></div>';
   });
 
