@@ -621,7 +621,7 @@ textarea { min-height: 72px; resize: vertical; }
 
     <div style="display:flex;gap:10px;justify-content:flex-end;">
       <button class="btn btn-g" onclick="resetForm()">↺ Clear &amp; Start Over</button>
-      <button class="btn btn-p" onclick="submitLeave()">✓ Submit Entry</button>
+      <button class="btn btn-p" id="submitBtn" onclick="submitLeave()">✓ Submit Entry</button>
     </div>
   </div>
 
@@ -752,6 +752,7 @@ const TC_CLASS = { WFH:'tc-wfh', AL:'tc-al', MC:'tc-mc', HL:'tc-hl' };
 
 let ALL_DATA = [];
 let XL_ROWS  = [];
+let EDIT_TS  = null; // tracks which row is being edited (by Timestamp)
 
 // ═══════════════════════════════════════════════
 //  INIT
@@ -846,26 +847,37 @@ async function submitLeave(){
   }
 
   try {
+    const isEdit = !!EDIT_TS;
     const params = new URLSearchParams({
-      action: 'add',
+      action: isEdit ? 'update' : 'add',
       date, dateTo, name, type,
-      duration: dur, reason, submittedBy: name
+      duration: dur, reason, submittedBy: name,
+      ...(isEdit ? { id: EDIT_TS } : {})
     });
     const r = await fetch(SCRIPT_URL + '?' + params.toString());
     if(!r.ok) throw new Error('HTTP ' + r.status);
     const j = await r.json();
     if(j.ok){
-      toast('✅ Submitted to Google Sheet!', 'ok');
+      toast(isEdit ? '✅ Entry updated!' : '✅ Submitted to Google Sheet!', 'ok');
+      // Update local data immediately
+      if(isEdit){
+        const idx = ALL_DATA.findIndex(x => x.Timestamp === EDIT_TS);
+        if(idx > -1){
+          ALL_DATA[idx] = normalizeRow({
+            Timestamp: EDIT_TS, Date: date, DateTo: dateTo,
+            Name: name, Type: type, Duration: dur, Reason: reason
+          });
+        }
+      } else {
+        ALL_DATA.push(normalizeRow({
+          Timestamp: new Date().toISOString(),
+          Date: date, DateTo: dateTo, Name: name,
+          Type: type, Duration: dur, Reason: reason
+        }));
+      }
       resetForm();
-      // Immediately add to local data so recent list updates without waiting
-      ALL_DATA.push(normalizeRow({
-        Timestamp: new Date().toISOString(),
-        Date: date, DateTo: dateTo, Name: name,
-        Type: type, Duration: dur, Reason: reason
-      }));
       renderRecent();
       renderDash();
-      // Then do a full reload from sheet in background
       setTimeout(loadData, 1500);
     } else {
       toast('❌ ' + j.error, 'err');
@@ -876,6 +888,7 @@ async function submitLeave(){
 }
 
 function resetForm(){
+  EDIT_TS = null;
   ['f-name','f-type','f-reason'].forEach(id => {
     const el = document.getElementById(id); if(el) el.value = '';
   });
@@ -887,10 +900,13 @@ function resetForm(){
   const po = document.getElementById('parseOk'); if(po) po.style.display = 'none';
   const fc = document.getElementById('formCard');
   if(fc){ fc.style.display = 'none'; fc.classList.remove('form-reveal'); }
+  // Reset submit button
+  const sb = document.getElementById('submitBtn');
+  if(sb){ sb.textContent = '✓ Submit Entry'; sb.style.background = ''; }
   // Reset duration chip safely
   const firstDur = document.querySelector('#durChips .chip');
   if(firstDur) pickDur(firstDur, 'Full Day');
-  // Reset mode chip safely — find by text content
+  // Reset mode chip safely
   let singleChip = null;
   document.querySelectorAll('.chip').forEach(c => {
     if(c.textContent.includes('Single Date')) singleChip = c;
@@ -1104,21 +1120,85 @@ function go(id){
 function renderRecent(){
   const sorted = [...ALL_DATA].sort((a,b)=>(b.Timestamp||'').localeCompare(a.Timestamp||''));
   let h = '';
-  sorted.slice(0,6).forEach(r => {
-    const n=r.Name||'', t=r.Type||'', d=r.Date||'', dur=r.Duration||'Full Day';
+  sorted.slice(0,10).forEach(r => {
+    const n=r.Name||'', t=r.Type||'', d=r.Date||'', dTo=r.DateTo||d, dur=r.Duration||'Full Day';
+    const dlbl = d===dTo ? d : d+' → '+dTo;
+    const ts = (r.Timestamp||'').replace(/"/g,'&quot;');
     h += `<div class="upc-item">
       <div class="av av-28 av-${n}">${n.charAt(0)}</div>
-      <div style="flex:1"><div style="font-weight:800">${n}</div>
-        <div style="font-size:11px;color:var(--muted)">${d} &nbsp;·&nbsp; ${dur}</div></div>
-      <span class="pill ${TYPE_PILL[t]||'p-grey'}">${TYPE_LBL[t]||t}</span>
+      <div style="flex:1">
+        <div style="font-weight:800">${n}</div>
+        <div style="font-size:11px;color:var(--muted)">${dlbl} &nbsp;·&nbsp; ${dur}</div>
+      </div>
+      <span class="pill ${TYPE_PILL[t]||'p-grey'}" style="margin-right:8px">${TYPE_LBL[t]||t}</span>
+      <button class="btn btn-g btn-sm" onclick="editEntry('${ts}')" style="padding:5px 10px;font-size:11px;">✏️</button>
     </div>`;
   });
   document.getElementById('recentList').innerHTML = h || '<div style="text-align:center;padding:20px;color:var(--muted)">No submissions yet. Be the first! 👆</div>';
 }
 
 // ═══════════════════════════════════════════════
-//  DASHBOARD
+//  EDIT ENTRY
 // ═══════════════════════════════════════════════
+function editEntry(ts){
+  const r = ALL_DATA.find(x => (x.Timestamp||'') === ts);
+  if(!r){ toast('Could not find that entry', 'err'); return; }
+
+  EDIT_TS = ts;
+
+  // Switch to submit tab
+  go('submit');
+
+  // Fill form fields
+  document.getElementById('f-name').value   = r.Name    || '';
+  document.getElementById('f-type').value   = r.Type    || '';
+  document.getElementById('f-reason').value = r.Reason  || '';
+
+  // Duration chip
+  const dur = r.Duration || 'Full Day';
+  document.getElementById('f-dur').value = dur;
+  document.querySelectorAll('#durChips .chip').forEach(c => {
+    c.classList.toggle('on',
+      (dur==='Full Day'    && c.textContent.includes('Full')) ||
+      (dur==='Half Day AM' && c.textContent.includes('AM'))   ||
+      (dur==='Half Day PM' && c.textContent.includes('PM'))
+    );
+  });
+
+  // Date mode — range if DateTo differs from Date
+  const d = r.Date || '', dTo = r.DateTo || d;
+  if(d !== dTo){
+    let rangeChip = null;
+    document.querySelectorAll('.chip').forEach(c => { if(c.textContent.includes('Date Range')) rangeChip = c; });
+    if(rangeChip) pickMode(rangeChip, 'range');
+    document.getElementById('f-from').value = d;
+    document.getElementById('f-to').value   = dTo;
+  } else {
+    let singleChip = null;
+    document.querySelectorAll('.chip').forEach(c => { if(c.textContent.includes('Single Date')) singleChip = c; });
+    if(singleChip) pickMode(singleChip, 'single');
+    document.getElementById('f-date').value = d;
+  }
+
+  // Update smart entry box to show what's being edited
+  document.getElementById('smartTxt').value = '';
+  const po = document.getElementById('parseOk');
+  po.style.display = '';
+  po.innerHTML = `✏️ <strong>Editing entry:</strong> ${r.Name} · ${TYPE_LBL[r.Type]||r.Type} · ${d}${d!==dTo?' → '+dTo:''} · ${dur}
+    <div style="font-size:11px;margin-top:6px;color:var(--purple);">Make your changes below then click <strong>Update Entry</strong>.</div>`;
+
+  // Show form
+  const fc = document.getElementById('formCard');
+  fc.style.display = '';
+  fc.classList.add('form-reveal');
+
+  // Change submit button text
+  document.getElementById('submitBtn').textContent = '✓ Update Entry';
+  document.getElementById('submitBtn').style.background = 'var(--purple)';
+
+  fc.scrollIntoView({ behavior:'smooth', block:'start' });
+  toast('✏️ Editing — make your changes and click Update Entry', 'ok');
+}
 function renderDash(){
   const year   = new Date().getFullYear();
   const filt = ALL_DATA.filter(r => (r.Date||'').startsWith(year+''));
@@ -1346,27 +1426,40 @@ function add(d, n){ const r=new Date(d); r.setDate(r.getDate()+n); return r; }
 function val(id){ return (document.getElementById(id)||{}).value || ''; }
 function inRange(check, from, to){ return check>=(from||check)&&check<=(to||from||check); }
 
-// Convert any date format to YYYY-MM-DD string
+// Convert any date format to YYYY-MM-DD string (timezone-safe)
 function safeDate(s){
   if(!s && s !== 0) return '';
   s = s.toString().trim();
   if(!s) return '';
-  // Already YYYY-MM-DD
+  // Already clean YYYY-MM-DD — use as-is, no conversion
   if(/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
-  // ISO with time e.g. 2026-03-29T00:00:00
-  if(/^\d{4}-\d{2}-\d{2}T/.test(s)) return s.slice(0,10);
-  // Has slashes or dashes: could be DD/MM/YYYY or MM/DD/YYYY
+  // ISO with time — extract date part directly from string before any timezone conversion
+  // e.g. "2026-01-04T16:00:00.000Z" → we want "2026-01-05" (MYT) not "2026-01-04" (UTC)
+  // Best approach: parse and use UTC date methods since Apps Script sends UTC midnight MYT
+  if(/^\d{4}-\d{2}-\d{2}T/.test(s)){
+    const d = new Date(s);
+    if(!isNaN(d)){
+      // Use UTC methods — Apps Script serializes the date as UTC midnight of the spreadsheet timezone
+      // Adding 8 hours (MYT offset) before extracting to get correct local date
+      const myt = new Date(d.getTime() + 8*60*60*1000);
+      const y   = myt.getUTCFullYear();
+      const m   = String(myt.getUTCMonth()+1).padStart(2,'0');
+      const day = String(myt.getUTCDate()).padStart(2,'0');
+      return `${y}-${m}-${day}`;
+    }
+  }
+  // DD/MM/YYYY or M/D/YYYY with slashes or dashes
   const parts = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
   if(parts){
     const a = parseInt(parts[1]), b = parseInt(parts[2]), y = parts[3];
-    // If first number > 12 it must be DD/MM/YYYY
-    // If second number > 12 it must be MM/DD/YYYY
-    // Malaysia locale = DD/MM/YYYY so default to that
-    if(b > 12){
-      // MM/DD/YYYY (US format)
+    if(a > 12){
+      // must be DD/MM/YYYY
+      return `${y}-${String(b).padStart(2,'0')}-${String(a).padStart(2,'0')}`;
+    } else if(b > 12){
+      // must be MM/DD/YYYY
       return `${y}-${String(a).padStart(2,'0')}-${String(b).padStart(2,'0')}`;
     } else {
-      // DD/MM/YYYY (Malaysia/Sheets default)
+      // ambiguous — default Malaysia DD/MM/YYYY
       return `${y}-${String(b).padStart(2,'0')}-${String(a).padStart(2,'0')}`;
     }
   }
@@ -1374,7 +1467,7 @@ function safeDate(s){
   if(/^\d{5}$/.test(s)){
     return fmt(new Date((parseInt(s)-25569)*86400*1000));
   }
-  // Last resort — let JS try
+  // Last resort
   const d = new Date(s);
   if(!isNaN(d)) return fmt(d);
   return '';
