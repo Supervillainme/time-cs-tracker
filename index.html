@@ -1123,15 +1123,15 @@ function renderRecent(){
   sorted.slice(0,10).forEach(r => {
     const n=r.Name||'', t=r.Type||'', d=r.Date||'', dTo=r.DateTo||d, dur=r.Duration||'Full Day';
     const dlbl = d===dTo ? d : d+' → '+dTo;
-    const ts = (r.Timestamp||'').replace(/"/g,'&quot;');
-    h += `<div class="upc-item">
+    const ts = encodeURIComponent(r.Timestamp||'');
+    h += `<div style="display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--border);">
       <div class="av av-28 av-${n}">${n.charAt(0)}</div>
-      <div style="flex:1">
+      <div style="flex:1;min-width:0;">
         <div style="font-weight:800">${n}</div>
-        <div style="font-size:11px;color:var(--muted)">${dlbl} &nbsp;·&nbsp; ${dur}</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px">${dlbl} &nbsp;·&nbsp; ${dur}</div>
       </div>
-      <span class="pill ${TYPE_PILL[t]||'p-grey'}" style="margin-right:8px">${TYPE_LBL[t]||t}</span>
-      <button class="btn btn-g btn-sm" onclick="editEntry('${ts}')" style="padding:5px 10px;font-size:11px;">✏️</button>
+      <span class="pill ${TYPE_PILL[t]||'p-grey'}" style="flex-shrink:0;">${TYPE_LBL[t]||t}</span>
+      <button onclick="editEntry(decodeURIComponent('${ts}'))" style="flex-shrink:0;background:white;border:2px solid var(--border);border-radius:7px;padding:5px 10px;cursor:pointer;font-size:13px;transition:all .2s;" onmouseover="this.style.borderColor='var(--pink)'" onmouseout="this.style.borderColor='var(--border)'">✏️</button>
     </div>`;
   });
   document.getElementById('recentList').innerHTML = h || '<div style="text-align:center;padding:20px;color:var(--muted)">No submissions yet. Be the first! 👆</div>';
@@ -1141,8 +1141,8 @@ function renderRecent(){
 //  EDIT ENTRY
 // ═══════════════════════════════════════════════
 function editEntry(ts){
-  const r = ALL_DATA.find(x => (x.Timestamp||'') === ts);
-  if(!r){ toast('Could not find that entry', 'err'); return; }
+  const r = ALL_DATA.find(x => (x.Timestamp||'').trim() === ts.trim());
+  if(!r){ toast('Could not find that entry — try refreshing', 'err'); return; }
 
   EDIT_TS = ts;
 
