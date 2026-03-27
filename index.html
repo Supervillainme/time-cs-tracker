@@ -838,6 +838,21 @@ async function submitLeave(){
   if(!date)  { toast('Pick a date', 'err'); return; }
   if(mode==='range' && dateTo < date) { toast('End date must be after start date', 'err'); return; }
 
+  // ── Duplicate check (skip if we're already editing or force-submitting) ──
+  if(!EDIT_TS && !window._forceSubmit){
+    const dup = ALL_DATA.find(r => {
+      if((r.Name||'') !== name) return false;
+      // Check if any day in the new range overlaps existing entry's range
+      const eFrom = r.Date  || '';
+      const eTo   = r.DateTo || eFrom;
+      return date <= eTo && dateTo >= eFrom;
+    });
+    if(dup){
+      showDupAlert(dup, name, date, dateTo, type);
+      return;
+    }
+  }
+
   const payload = { date, dateTo, name, type, duration:dur, reason, submittedBy:name };
 
   if(!SCRIPT_URL){
@@ -887,8 +902,79 @@ async function submitLeave(){
   }
 }
 
+// ═══════════════════════════════════════════════
+//  DUPLICATE ALERT
+// ═══════════════════════════════════════════════
+function showDupAlert(existing, name, newDate, newDateTo, newType){
+  // Remove any existing alert
+  const old = document.getElementById('dupAlert');
+  if(old) old.remove();
+
+  const eFrom = existing.Date || '';
+  const eTo   = existing.DateTo || eFrom;
+  const dateLabel  = newDate === newDateTo ? newDate : newDate + ' → ' + newDateTo;
+  const existLabel = eFrom === eTo ? eFrom : eFrom + ' → ' + eTo;
+  const ts = encodeURIComponent(existing.Timestamp || '');
+
+  const div = document.createElement('div');
+  div.id = 'dupAlert';
+  div.style.cssText = `
+    background: #fff8e1;
+    border: 2px solid #f59e0b;
+    border-radius: 10px;
+    padding: 16px 20px;
+    margin-bottom: 18px;
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+  `;
+  div.innerHTML = `
+    <div style="font-size:24px;flex-shrink:0;">⚠️</div>
+    <div style="flex:1;">
+      <div style="font-weight:900;font-size:14px;color:#92400e;margin-bottom:4px;">Duplicate entry detected</div>
+      <div style="font-size:13px;color:#78350f;line-height:1.6;">
+        <strong>${name}</strong> already has <strong>${TYPE_LBL[existing.Type]||existing.Type}</strong> recorded for <strong>${existLabel}</strong>.
+        Your new entry (<strong>${dateLabel}</strong>) overlaps with it.
+      </div>
+      <div style="display:flex;gap:10px;margin-top:12px;flex-wrap:wrap;">
+        <button onclick="editEntry(decodeURIComponent('${ts}'));removeDupAlert();"
+          style="background:var(--purple);color:white;border:none;border-radius:7px;padding:8px 16px;font-size:12px;font-weight:800;cursor:pointer;font-family:inherit;">
+          ✏️ Edit Existing Entry
+        </button>
+        <button onclick="forceSubmit()"
+          style="background:white;color:var(--mid);border:2px solid var(--border);border-radius:7px;padding:8px 16px;font-size:12px;font-weight:800;cursor:pointer;font-family:inherit;">
+          Submit Anyway
+        </button>
+        <button onclick="removeDupAlert()"
+          style="background:white;color:var(--muted);border:2px solid var(--border);border-radius:7px;padding:8px 16px;font-size:12px;font-weight:800;cursor:pointer;font-family:inherit;">
+          ✕ Cancel
+        </button>
+      </div>
+    </div>`;
+
+  // Insert above the form card
+  const fc = document.getElementById('formCard');
+  fc.parentNode.insertBefore(div, fc);
+  div.scrollIntoView({ behavior:'smooth', block:'nearest' });
+}
+
+function removeDupAlert(){
+  const el = document.getElementById('dupAlert');
+  if(el) el.remove();
+}
+
+async function forceSubmit(){
+  removeDupAlert();
+  EDIT_TS = null; // ensure we're not in edit mode
+  // Temporarily mark as force so duplicate check is skipped
+  window._forceSubmit = true;
+  await submitLeave();
+  window._forceSubmit = false;
+}
+
 function resetForm(){
   EDIT_TS = null;
+  removeDupAlert();
   ['f-name','f-type','f-reason'].forEach(id => {
     const el = document.getElementById(id); if(el) el.value = '';
   });
