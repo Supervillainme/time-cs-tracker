@@ -877,7 +877,7 @@ async function loadData() {
       ALL_DATA = (j.data || []).map(normalizeRow).filter(r => r.Date);
       if(ALL_DATA.length === 0) toast('✅ Connected — sheet is empty, no entries yet', 'ok');
     } else {
-      toast('⚠️ Sheet error: ' + j.error, 'err');
+      toast('⚠️ Sheet error: ' + (j.error || j.message || 'Check Apps Script deployment'), 'err');
       ALL_DATA = [];
     }
   } catch(e) {
