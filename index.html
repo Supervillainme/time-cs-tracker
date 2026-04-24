@@ -552,6 +552,7 @@ textarea { min-height: 72px; resize: vertical; }
           <option value="">— Select Type —</option>
           <optgroup label="── Work Arrangement ──">
             <option value="WFH">🏠 Work From Home (WFH)</option>
+            <option value="WFO">🏢 Work From Office (Override)</option>
           </optgroup>
           <optgroup label="── Leave Types ──">
             <option value="AL">📅 Annual Leave</option>
@@ -731,11 +732,12 @@ textarea { min-height: 72px; resize: vertical; }
 // ═══════════════════════════════════════════════
 //  CONFIGURATION
 // ═══════════════════════════════════════════════
-let SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzlD2pyx2XovaaaABfyJKhvAdPEco_RBlJkcBUzJIx0yYN1erVIcgUDfcVJjnEH5J6-bQ/exec';
+let SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzggDHvlFmtwsGa3aQ5qA77kuL5KeRcypSek2jRLJma9exSaJTCol8Kzp6lJN61wkaGvQ/exec';
 const PEOPLE = ['Satesh','Rizal','Pearly','Sumathi','Maran'];
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 const TYPE_LBL = {
   WFH:'🏠 WFH',
+  WFO:'🏢 Work From Office',
   AL:'📅 Annual Leave',
   MC:'💊 Medical',
   HL:'🏨 Hospitalisation',
@@ -753,7 +755,7 @@ const TYPE_LBL = {
   OL:'📌 Other'
 };
 const TYPE_PILL = {
-  WFH:'p-pink', AL:'p-purple', MC:'p-blue', HL:'p-red',
+  WFH:'p-pink', WFO:'p-green', AL:'p-purple', MC:'p-blue', HL:'p-red',
   EL:'p-red', CC:'p-grey', BL:'p-grey', COC:'p-grey',
   SE:'p-cyan', CF:'p-cyan', ML:'p-green', PL:'p-green',
   MRL:'p-yellow', RL:'p-cyan', UL:'p-grey', OL:'p-grey'
@@ -809,6 +811,8 @@ function isPublicHoliday(d){ return PUBLIC_HOLIDAYS[d] || null; }
 function getEffectiveStatus(name, dateStr, data){
   // Actual entry always wins
   const actual = data.find(r => inRange(dateStr, r.Date||'', r.DateTo||r.Date||'') && (r.Name||'')===name);
+  // WFO override — person is coming in on their usual WFH day, show as In Office
+  if(actual && actual.Type === 'WFO') return null;
   if(actual) return actual;
   // Recurring WFH — only on weekdays, non-holidays
   const dow = RECURRING_WFH[name];
@@ -901,8 +905,11 @@ function demo(){
 async function submitLeave(){
   const name = val('f-name'), type = val('f-type'), dur = val('f-dur');
   const mode = val('f-mode');
-  const date = mode==='single' ? val('f-date') : val('f-from');
-  const dateTo = mode==='range' ? val('f-to') : date;
+  const rawDate   = mode==='single' ? val('f-date') : val('f-from');
+  const rawDateTo = mode==='range'  ? val('f-to')   : rawDate;
+  // Normalize in case mobile browser returns DD/MM/YYYY display format
+  const date   = safeDate(rawDate)   || rawDate;
+  const dateTo = safeDate(rawDateTo) || rawDateTo;
   const reason = val('f-reason');
 
   if(!name)  { toast('Select a staff name', 'err'); return; }
@@ -953,10 +960,12 @@ async function submitLeave(){
     });
     const r = await fetch(SCRIPT_URL + '?' + params.toString());
     if(!r.ok) throw new Error('HTTP ' + r.status);
-    const j = await r.json();
+    const txt = await r.text();
+    let j;
+    try { j = JSON.parse(txt); }
+    catch(pe){ throw new Error('Bad response: ' + txt.slice(0,120)); }
     if(j.ok){
       toast(isEdit ? '✅ Entry updated!' : '✅ Submitted to Google Sheet!', 'ok');
-      // Update local data immediately
       if(isEdit){
         const idx = ALL_DATA.findIndex(x => x.Timestamp === EDIT_TS);
         if(idx > -1){
@@ -977,10 +986,10 @@ async function submitLeave(){
       renderDash();
       setTimeout(loadData, 1500);
     } else {
-      toast('❌ ' + j.error, 'err');
+      toast('❌ ' + (j.error || j.message || 'Unknown error from Sheet'), 'err');
     }
   } catch(e) {
-    toast('❌ Submit failed: ' + e.message, 'err');
+    toast('❌ Submit failed: ' + (e.message || 'Unknown error'), 'err');
   }
 }
 
@@ -1106,6 +1115,7 @@ function parseSmart(){
   // ── Type ──
   const typeMap = [
     [['work from home','wfh','working from home','from home'],'WFH'],
+    [['work from office','wfo','coming in','in office today','office today','going to office'],'WFO'],
     [['annual leave','annual','day off','time off','on leave'],'AL'],
     [['medical','mc ','mc,','mc.','sick leave','sick','unwell','not feeling well','flu','fever','doctor','clinic'],'MC'],
     [['hospitaliz','hospital','ward','icu','surgery','operation'],'HL'],
