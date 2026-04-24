@@ -1802,42 +1802,40 @@ function safeDate(s){
   if(!s && s !== 0) return '';
   s = s.toString().trim();
   if(!s) return '';
-  // Already clean YYYY-MM-DD — use as-is, no conversion
+  // Already clean YYYY-MM-DD
   if(/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
-  // ISO with time — extract date part directly from string before any timezone conversion
-  // e.g. "2026-01-04T16:00:00.000Z" → we want "2026-01-05" (MYT) not "2026-01-04" (UTC)
-  // Best approach: parse and use UTC date methods since Apps Script sends UTC midnight MYT
+  // Full JS date string with GMT offset e.g. "Fri Mar 27 2026 00:00:00 GMT+0800 (Singapore Standard Time)"
+  if(s.includes('GMT')){
+    const d = new Date(s);
+    if(!isNaN(d)){
+      const offsetMatch = s.match(/GMT([+-])(\d{2})(\d{2})/);
+      if(offsetMatch){
+        const sign  = offsetMatch[1] === '+' ? 1 : -1;
+        const offMs = sign * (parseInt(offsetMatch[2]) * 60 + parseInt(offsetMatch[3])) * 60000;
+        const local = new Date(d.getTime() + offMs);
+        return `${local.getUTCFullYear()}-${String(local.getUTCMonth()+1).padStart(2,'0')}-${String(local.getUTCDate()).padStart(2,'0')}`;
+      }
+      return fmt(d);
+    }
+  }
+  // ISO with time — add MYT +8hr offset
   if(/^\d{4}-\d{2}-\d{2}T/.test(s)){
     const d = new Date(s);
     if(!isNaN(d)){
-      // Use UTC methods — Apps Script serializes the date as UTC midnight of the spreadsheet timezone
-      // Adding 8 hours (MYT offset) before extracting to get correct local date
       const myt = new Date(d.getTime() + 8*60*60*1000);
-      const y   = myt.getUTCFullYear();
-      const m   = String(myt.getUTCMonth()+1).padStart(2,'0');
-      const day = String(myt.getUTCDate()).padStart(2,'0');
-      return `${y}-${m}-${day}`;
+      return `${myt.getUTCFullYear()}-${String(myt.getUTCMonth()+1).padStart(2,'0')}-${String(myt.getUTCDate()).padStart(2,'0')}`;
     }
   }
-  // DD/MM/YYYY or M/D/YYYY with slashes or dashes
+  // DD/MM/YYYY or M/D/YYYY
   const parts = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
   if(parts){
     const a = parseInt(parts[1]), b = parseInt(parts[2]), y = parts[3];
-    if(a > 12){
-      // must be DD/MM/YYYY
-      return `${y}-${String(b).padStart(2,'0')}-${String(a).padStart(2,'0')}`;
-    } else if(b > 12){
-      // must be MM/DD/YYYY
-      return `${y}-${String(a).padStart(2,'0')}-${String(b).padStart(2,'0')}`;
-    } else {
-      // ambiguous — default Malaysia DD/MM/YYYY
-      return `${y}-${String(b).padStart(2,'0')}-${String(a).padStart(2,'0')}`;
-    }
+    if(a > 12) return `${y}-${String(b).padStart(2,'0')}-${String(a).padStart(2,'0')}`;
+    if(b > 12) return `${y}-${String(a).padStart(2,'0')}-${String(b).padStart(2,'0')}`;
+    return `${y}-${String(b).padStart(2,'0')}-${String(a).padStart(2,'0')}`;
   }
-  // Excel serial number (5 digits)
-  if(/^\d{5}$/.test(s)){
-    return fmt(new Date((parseInt(s)-25569)*86400*1000));
-  }
+  // Excel serial
+  if(/^\d{5}$/.test(s)) return fmt(new Date((parseInt(s)-25569)*86400*1000));
   // Last resort
   const d = new Date(s);
   if(!isNaN(d)) return fmt(d);
